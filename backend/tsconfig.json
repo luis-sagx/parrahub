@@ -28,7 +28,9 @@
       "@redis/*": ["src/redis/*"],
       "@prisma-service/*": ["src/prisma/*"],
       "@common/*": ["src/common/*"],
-      "@mongoose/*": ["src/mongoose/*"]
+      "@mongoose/*": ["src/mongoose/*"],
+      "@files/*": ["src/files/*"],
+      "@minio/*": ["src/minio/*"]
     }
   }
 }

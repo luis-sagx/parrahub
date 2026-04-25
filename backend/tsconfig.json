@@ -20,6 +20,15 @@
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "@auth/*": ["src/auth/*"],
+      "@rooms/*": ["src/rooms/*"],
+      "@gateway/*": ["src/gateway/*"],
+      "@redis/*": ["src/redis/*"],
+      "@prisma-service/*": ["src/prisma/*"],
+      "@common/*": ["src/common/*"],
+      "@mongoose/*": ["src/mongoose/*"]
+    }
   }
 }

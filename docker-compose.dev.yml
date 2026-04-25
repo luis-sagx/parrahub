@@ -70,7 +70,9 @@ services:
       retries: 5
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      target: dev
     container_name: chat_backend
     restart: unless-stopped
     command: pnpm run start:dev
@@ -106,10 +108,10 @@ services:
   frontend:
     build:
       context: ./frontend
-      target: build
+      target: dev
     container_name: chat_frontend
     restart: unless-stopped
-    command: pnpm run dev -- --host 0.0.0.0
+    command: pnpm run dev --host 0.0.0.0
     ports:
       - "5173:5173"
     volumes:

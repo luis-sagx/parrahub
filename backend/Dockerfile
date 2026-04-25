@@ -20,7 +20,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --prod --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 EXPOSE 3000

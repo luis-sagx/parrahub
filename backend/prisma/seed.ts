@@ -17,12 +17,17 @@ async function main() {
   const password = process.env.ADMIN_PASSWORD || 'Admin1234!';
 
   const existing = await prisma.admin.findUnique({ where: { username } });
+  const hashedPassword = await bcrypt.hash(password, 12);
+
   if (existing) {
-    console.log(`Admin "${username}" ya existe, saltando seed.`);
+    await prisma.admin.update({
+      where: { username },
+      data: { password: hashedPassword },
+    });
+    console.log(`Admin "${username}" ya existe, password actualizado.`);
     return;
   }
 
-  const hashedPassword = await bcrypt.hash(password, 12);
   const admin = await prisma.admin.create({
     data: { username, password: hashedPassword },
   });

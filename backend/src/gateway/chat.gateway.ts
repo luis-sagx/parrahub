@@ -99,6 +99,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
+    const room = await this.roomsService.findOne(roomId);
+
     // 3. Validar nickname único en la sala
     const nicknameExists = await this.redisService.hasNicknameInRoom(
       roomId,
@@ -135,6 +137,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.emit('join-success', {
       roomId,
       nickname,
+      room,
       history: history.reverse(),
     });
     this.server.to(roomId).emit('user-joined', { nickname, users });

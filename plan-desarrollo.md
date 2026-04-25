@@ -1,4 +1,5 @@
 # Plan de Desarrollo — Sistema de Chat en Tiempo Real
+
 ## Grupo de 3 personas · Con agentes de IA
 
 > **Estrategia general:** cada persona es dueña completa de su dominio.
@@ -9,11 +10,11 @@
 
 ## Resumen de responsabilidades
 
-| Persona | Dominio | Tecnologías principales |
-|---|---|---|
-| **P1 — Backend Core** | Auth, Rooms, Gateway WebSocket, Redis, Prisma, DB | NestJS, Socket.IO, Redis, PostgreSQL, JWT, bcrypt |
-| **P2 — Backend Files + Infra** | Archivos, MinIO, BullMQ, Workers, Docker, deploy VPS | NestJS, BullMQ, MinIO, Docker, Nginx, GitHub Actions |
-| **P3 — Frontend completo** | Toda la UI, estado, hooks, servicios, diseño responsivo | React, Vite, Zustand, TanStack Query, shadcn/ui, Axios |
+| Persona                        | Dominio                                                 | Tecnologías principales                                |
+| ------------------------------ | ------------------------------------------------------- | ------------------------------------------------------ |
+| **P1 — Backend Core**          | Auth, Rooms, Gateway WebSocket, Redis, Prisma, DB       | NestJS, Socket.IO, Redis, PostgreSQL, JWT, bcrypt      |
+| **P2 — Backend Files + Infra** | Archivos, MinIO, BullMQ, Workers, Docker, deploy VPS    | NestJS, BullMQ, MinIO, Docker, Nginx, GitHub Actions   |
+| **P3 — Frontend completo**     | Toda la UI, estado, hooks, servicios, diseño responsivo | React, Vite, Zustand, TanStack Query, shadcn/ui, Axios |
 
 ---
 
@@ -53,6 +54,7 @@ SEMANA 3 (integración + tests)
 **Duración estimada:** 1 día
 
 **Prompt para agente de IA:**
+
 ```
 Crea un proyecto NestJS desde cero con las siguientes características:
 - Usa @nestjs/cli para generar el proyecto base
@@ -106,6 +108,7 @@ Crea un proyecto NestJS desde cero con las siguientes características:
 **Duración estimada:** 1 día
 
 **Prompt para agente de IA:**
+
 ```
 En el proyecto NestJS existente, crea el módulo de autenticación completo:
 
@@ -139,6 +142,7 @@ Usa mocks de PrismaService con jest.fn()
 **Duración estimada:** 1 día
 
 **Prompt para agente de IA:**
+
 ```
 En el proyecto NestJS existente, crea el módulo de gestión de salas completo:
 
@@ -176,6 +180,7 @@ Escribe tests unitarios en rooms.service.spec.ts:
 **Duración estimada:** 1 día
 
 **Prompt para agente de IA:**
+
 ```
 En el proyecto NestJS existente, crea el módulo Redis y el sistema de sesión única:
 
@@ -219,6 +224,7 @@ Escribe tests para RedisService usando ioredis-mock:
 **Duración estimada:** 2 días
 
 **Prompt para agente de IA:**
+
 ```
 En el proyecto NestJS existente, crea el Chat Gateway completo con Socket.IO:
 
@@ -276,6 +282,7 @@ Escribe tests en chat.gateway.spec.ts usando socket.io-mock:
 **Duración estimada:** 1 día
 
 **Prompt para agente de IA:**
+
 ```
 En el proyecto NestJS existente, completa la cobertura de tests y documenta la API:
 
@@ -321,6 +328,7 @@ En el proyecto NestJS existente, completa la cobertura de tests y documenta la A
 **Duración estimada:** 1 día
 
 **Prompt para agente de IA:**
+
 ```
 Crea el docker-compose.yml completo para este proyecto de chat en tiempo real.
 Debe definir exactamente estos 7 servicios en una red interna llamada 'chat-net':
@@ -380,6 +388,7 @@ Crea .env.example raíz con TODAS las variables de todos los servicios.
 **Duración estimada:** 1 día
 
 **Prompt para agente de IA:**
+
 ```
 Crea la configuración completa de Nginx para este proyecto en docker/nginx/:
 
@@ -429,6 +438,7 @@ Crea frontend/nginx.conf separado para el contenedor del frontend:
 **Duración estimada:** 2 días
 
 **Prompt para agente de IA:**
+
 ```
 En el proyecto NestJS existente, crea el módulo completo de manejo de archivos:
 
@@ -482,6 +492,7 @@ Escribe tests en files.service.spec.ts:
 **Duración estimada:** 1 día
 
 **Prompt para agente de IA:**
+
 ```
 En el proyecto NestJS existente, crea el módulo MinIO completo:
 
@@ -499,14 +510,14 @@ MinioService:
     * Genera key única: `${Date.now()}-${uuid()}-${filename}`
     * Sube con PutObjectCommand
     * Retorna la URL pública: `http://MINIO_ENDPOINT:MINIO_PORT/MINIO_BUCKET/key`
-  
+
   - getPresignedUrl(key: string, expirySeconds = 3600): Promise<string>
     * Genera URL firmada con GetObjectCommand y getSignedUrl
     * Útil para archivos privados si se necesita en el futuro
-  
+
   - deleteFile(key: string): Promise<void>
     * Elimina con DeleteObjectCommand
-  
+
   - getFileMetadata(key: string): Promise<{size, contentType, lastModified}>
     * Usa HeadObjectCommand para obtener metadata sin descargar el archivo
 
@@ -529,6 +540,7 @@ Escribe tests en minio.service.spec.ts usando mocks del SDK de AWS:
 **Duración estimada:** 1 día
 
 **Prompt para agente de IA:**
+
 ```
 Crea los pipelines de GitHub Actions y los scripts de deploy para VPS Hostinger:
 
@@ -589,38 +601,39 @@ Documenta en docs/DEPLOY.md:
 **Duración estimada:** 1 día
 
 **Prompt para agente de IA:**
+
 ```
 Crea los tests end-to-end y de carga para el sistema de chat:
 
 backend/test/app.e2e-spec.ts:
   Flujo completo de integración usando supertest y socket.io-client real:
-  
+
   Test suite 1 - Auth:
     - POST /auth/login con credenciales correctas → 200 + JWT
     - POST /auth/login con password incorrecta → 401
     - GET /rooms sin JWT → 401
-  
+
   Test suite 2 - Rooms:
     - POST /rooms (con JWT) crea sala TEXT → 201 + {id, name, type} sin pin
     - POST /rooms (con JWT) crea sala MULTIMEDIA con maxFileSize → 201
     - GET /rooms lista salas sin exponer pin → 200
     - DELETE /rooms/:id elimina sala → 204
-  
+
   Test suite 3 - WebSocket join:
     - Cliente se conecta y emite join-room con PIN correcto → recibe join-success
     - Cliente emite join-room con PIN incorrecto → recibe error INVALID_PIN
     - Segundo cliente con mismo nickname en misma sala → recibe NICKNAME_TAKEN
     - Tercer cliente en sala diferente desde misma IP → recibe ALREADY_IN_ROOM
-  
+
   Test suite 4 - Mensajes:
     - Cliente A y B en misma sala: A envía mensaje → B recibe new-message
     - Cliente se desconecta → resto recibe user-left
-  
+
   Configura jest-e2e.json para correr en entorno con servicios Docker
 
 k6/load-test.js:
   Simula el escenario real de 50 usuarios simultáneos:
-  
+
   export const options = {
     stages: [
       { duration: '30s', target: 50 },   // Sube a 50 usuarios en 30s
@@ -632,7 +645,7 @@ k6/load-test.js:
       http_req_failed: ['rate<0.01'],     // Menos del 1% de errores
     },
   };
-  
+
   Cada VU (virtual user) hace:
     1. POST /auth/login como admin (solo VU 1, resto usa el token compartido)
     2. GET /rooms para obtener lista
@@ -640,7 +653,7 @@ k6/load-test.js:
     4. Emite join-room con PIN de sala de prueba
     5. Loop: envía mensaje cada 2-5 segundos durante la duración del test
     6. Verifica que recibe confirmación en < 1000ms
-  
+
   Incluye métricas custom:
     - ws_connection_time: tiempo hasta join-success
     - message_delivery_time: tiempo entre send-message y recibir new-message
@@ -668,6 +681,7 @@ k6/smoke-test.js:
 **Duración estimada:** 1 día
 
 **Prompt para agente de IA:**
+
 ```
 Crea el proyecto frontend completo con React + Vite:
 
@@ -693,7 +707,7 @@ Configura:
     - Proxy en desarrollo: /api → http://localhost:3000, /socket.io → http://localhost:3000
 
   tailwind.config.ts:
-    - Extiende con colores custom: primary (#6366f1), success (#22c55e), danger (#ef4444)
+    - Extiende con colores custom
     - Incluye paths de shadcn/ui
 
 Crea la estructura de carpetas completa vacía con un index.ts en cada una:
@@ -719,6 +733,7 @@ Crea src/App.tsx con todas las rutas definidas (páginas vacías por ahora)
 **Duración estimada:** 1 día
 
 **Prompt para agente de IA:**
+
 ```
 En el proyecto React existente, crea el estado global y la capa de servicios:
 
@@ -782,6 +797,7 @@ src/lib/validations.ts con schemas Zod:
 **Duración estimada:** 1 día
 
 **Prompt para agente de IA:**
+
 ```
 En el proyecto React existente, crea las páginas del administrador:
 
@@ -834,13 +850,14 @@ Crea ProtectedRoute component:
 **Duración estimada:** 1 día
 
 **Prompt para agente de IA:**
+
 ```
 En el proyecto React existente, crea la página de join y el hook central de WebSocket:
 
 src/hooks/useSocket.ts (archivo más importante del frontend):
   - Inicializa socket desde src/lib/socket.ts (singleton con autoConnect: false)
   - Expone: { socket, connected, connect, disconnect }
-  
+
   Función connect(roomId, pin, nickname):
     1. socket.connect()
     2. socket.emit('join-room', {roomId, pin, nickname})
@@ -848,7 +865,7 @@ src/hooks/useSocket.ts (archivo más importante del frontend):
     4. Escucha error 'INVALID_PIN': chatStore.setJoinError('PIN incorrecto')
     5. Escucha error 'NICKNAME_TAKEN': chatStore.setJoinError('Nickname ya está en uso')
     6. Escucha error 'ALREADY_IN_ROOM': chatStore.setJoinError('Ya estás en otra sala')
-    
+
   Suscripciones activas durante el chat:
     - 'new-message': chatStore.addMessage(message)
     - 'user-joined': chatStore.setUsers(users), muestra toast "{nickname} se unió"
@@ -856,9 +873,9 @@ src/hooks/useSocket.ts (archivo más importante del frontend):
     - 'new-file': chatStore.addMessage({...message, type:'file'})
     - 'connect_error': chatStore.setJoinError('Error de conexión')
     - 'disconnect': chatStore.setConnected(false)
-  
+
   useEffect de limpieza: desuscribe todos los eventos al desmontar
-  
+
   Función disconnect(): socket.disconnect(), chatStore.clearRoom()
 
 src/pages/JoinRoom.tsx:
@@ -888,6 +905,7 @@ src/lib/socket.ts:
 **Duración estimada:** 2 días
 
 **Prompt para agente de IA:**
+
 ```
 En el proyecto React existente, crea la vista principal del chat y todos sus componentes:
 
@@ -952,6 +970,7 @@ src/hooks/useFileUpload.ts:
 **Duración estimada:** 1 día
 
 **Prompt para agente de IA:**
+
 ```
 En el proyecto React existente, realiza el pulido final, tests y documentación:
 
@@ -1006,13 +1025,13 @@ En el proyecto React existente, realiza el pulido final, tests y documentación:
 
 Estos son los momentos donde el código de los tres se une. Coordinar en estas fechas:
 
-| Punto | Cuándo | Qué se integra |
-|---|---|---|
-| **INT-1** | Fin semana 1 | P2 tiene docker-compose listo → P1 y P3 arrancan sus servicios contra los contenedores de P2 |
+| Punto     | Cuándo          | Qué se integra                                                                                       |
+| --------- | --------------- | ---------------------------------------------------------------------------------------------------- |
+| **INT-1** | Fin semana 1    | P2 tiene docker-compose listo → P1 y P3 arrancan sus servicios contra los contenedores de P2         |
 | **INT-2** | Inicio semana 2 | P1 define los eventos WebSocket definitivos (nombres y payloads) → P3 los implementa en useSocket.ts |
-| **INT-3** | Mitad semana 2 | P2 tiene el endpoint POST /files/upload listo → P3 lo conecta con filesApi.ts y FileUpload.tsx |
-| **INT-4** | Fin semana 2 | Todo el sistema corre junto localmente por primera vez |
-| **INT-5** | Fin semana 3 | P2 hace el deploy final en VPS con el código integrado de los tres |
+| **INT-3** | Mitad semana 2  | P2 tiene el endpoint POST /files/upload listo → P3 lo conecta con filesApi.ts y FileUpload.tsx       |
+| **INT-4** | Fin semana 2    | Todo el sistema corre junto localmente por primera vez                                               |
+| **INT-5** | Fin semana 3    | P2 hace el deploy final en VPS con el código integrado de los tres                                   |
 
 ## Contrato de API entre P1 y P3
 

@@ -6,7 +6,7 @@ export const options = {
   iterations: 1,
 };
 
-const BASE_URL = __ENV.BASE_URL || 'http://localhost:3001/api';
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:3000/api';
 
 export default function () {
   const login = http.post(

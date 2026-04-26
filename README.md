@@ -308,13 +308,13 @@ chat-realtime/
 
 ```bash
 # PostgreSQL
-DATABASE_URL="postgresql://user:password@postgres:5432/chatdb"
+DATABASE_URL="postgresql://chatuser:chatpassword@localhost:5433/chatdb"
 
 # MongoDB
-MONGODB_URI="mongodb://mongodb:27017/chatdb"
+MONGODB_URI="mongodb://chatuser:chatpassword@localhost:27018/chatdb?authSource=admin"
 
 # Redis
-REDIS_URL="redis://redis:6379"
+REDIS_URL="redis://localhost:6380"
 
 # JWT
 JWT_SECRET="tu-secreto-super-seguro-aqui"
@@ -325,15 +325,15 @@ ADMIN_USERNAME="admin"
 ADMIN_PASSWORD="tu-password-seguro"
 
 # MinIO
-MINIO_ENDPOINT="minio"
-MINIO_PORT=9000
+MINIO_ENDPOINT="localhost"
+MINIO_PORT=9002
 MINIO_ACCESS_KEY="minioadmin"
 MINIO_SECRET_KEY="minioadmin"
 MINIO_BUCKET="chat-files"
 
 # Frontend (prefijo VITE_ obligatorio para Vite)
-VITE_API_URL="https://tudominio.com/api"
-VITE_SOCKET_URL="https://tudominio.com"
+VITE_API_URL="http://localhost:3001/api"
+VITE_SOCKET_URL="http://localhost:3001"
 ```
 
 ---
@@ -349,6 +349,18 @@ cp .env.example .env
 
 # Desarrollo local (hot-reload)
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+# Accesos locales
+# Frontend Vite:   http://localhost:5174
+# Backend API:     http://localhost:3001/api
+# Nginx:           http://localhost:8085
+# PostgreSQL:      localhost:5433
+# MongoDB:         localhost:27018
+# Redis:           localhost:6380
+# MinIO API:       http://localhost:9002
+# MinIO Console:   http://localhost:9003
+# Adminer:         http://localhost:8082
+# Mongo Express:   http://localhost:8083
 
 # Producción en VPS
 docker compose up -d --build

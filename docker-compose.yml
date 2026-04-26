@@ -121,12 +121,13 @@ services:
     networks:
       - chat-net
   frontend:
-    build: ./frontend
+  build:
+    context: ./frontend
+    args:
+      VITE_API_URL: http://187.124.233.120:3001/api
+      VITE_SOCKET_URL: http://187.124.233.120:3001
     container_name: chat_frontend
     restart: unless-stopped
-    environment:
-      VITE_API_URL: ${VITE_API_URL}
-      VITE_SOCKET_URL: ${VITE_SOCKET_URL}
     ports:
       - "5174:80"
     depends_on:

@@ -7,12 +7,14 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5433:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
       - chat-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,12 +27,14 @@ services:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
       MONGO_INITDB_DATABASE: ${POSTGRES_DB}
+    ports:
+      - "27018:27017"
     volumes:
       - mongo-data:/data/db
     networks:
       - chat-net
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -40,12 +44,14 @@ services:
     container_name: chat_redis
     restart: unless-stopped
     command: redis-server --appendonly yes
+    ports:
+      - "6380:6379"
     volumes:
       - redis-data:/data
     networks:
       - chat-net
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -58,12 +64,15 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9002:9000"
+      - "9003:9001"
     volumes:
       - minio-data:/data
     networks:
       - chat-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -95,6 +104,8 @@ services:
       PORT: ${PORT}
       NODE_ENV: ${NODE_ENV}
       FRONTEND_URL: ${FRONTEND_URL}
+    ports:
+      - "3001:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,6 +122,11 @@ services:
     build: ./frontend
     container_name: chat_frontend
     restart: unless-stopped
+    environment:
+      VITE_API_URL: ${VITE_API_URL}
+      VITE_SOCKET_URL: ${VITE_SOCKET_URL}
+    ports:
+      - "5174:80"
     depends_on:
       - backend
     networks:
@@ -123,8 +139,7 @@ services:
     environment:
       DOMAIN: ${DOMAIN}
     ports:
-      - "80:80"
-      - "443:443"
+      - "8085:80"
     volumes:
       - letsencrypt:/etc/letsencrypt
       - certbot-webroot:/var/www/certbot

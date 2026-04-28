@@ -26,6 +26,7 @@ export default function CreateRoomModal({
   onOpenChange,
 }: CreateRoomModalProps) {
   const { createRoom, isCreating } = useRooms()
+  // El modal usa el mismo schema que el backend espera para crear salas.
   const {
     formState: { errors },
     handleSubmit,
@@ -46,6 +47,7 @@ export default function CreateRoomModal({
   const roomType = watch('type')
 
   useEffect(() => {
+    // Cada vez que se cierra el modal, se limpia el formulario para la proxima sala.
     if (!open) {
       reset({
         name: '',
@@ -57,6 +59,7 @@ export default function CreateRoomModal({
   }, [open, reset])
 
   const onSubmit = async (data: CreateRoomFormData) => {
+    // Las salas TEXT no necesitan limite de archivo, por eso se envia undefined.
     await createRoom({
       name: data.name,
       type: data.type,
@@ -107,6 +110,7 @@ export default function CreateRoomModal({
               className="grid grid-cols-2 gap-3"
               value={roomType}
               onValueChange={(value) =>
+                // RadioGroup devuelve string; aqui lo cerramos al tipo valido del formulario.
                 setValue('type', value as CreateRoomFormData['type'], {
                   shouldValidate: true,
                 })
@@ -154,6 +158,7 @@ export default function CreateRoomModal({
           </div>
 
           {roomType === 'MULTIMEDIA' && (
+            // El limite solo aparece cuando la sala permite archivos.
             <div className="space-y-2">
               <label
                 className="text-sm font-medium text-[#d0d6e0]"

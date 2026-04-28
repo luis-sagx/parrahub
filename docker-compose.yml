@@ -140,7 +140,9 @@ services:
     container_name: chat_nginx
     restart: always
     environment:
-      DOMAIN: ${DOMAIN}
+      DOMAIN: ${DOMAIN:-localhost}
+      FRONTEND_UPSTREAM: frontend:80
+      BACKEND_UPSTREAM: backend:3000
     ports:
       - "8085:80"
     volumes:

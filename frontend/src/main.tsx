@@ -6,6 +6,7 @@ import './index.css'
 import App from './App.tsx'
 import { queryClient } from '@/lib/queryClient'
 
+// Punto de entrada de React: monta la app, las rutas y el cliente de cache HTTP.
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>

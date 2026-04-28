@@ -128,6 +128,10 @@ services:
       context: ./docker/nginx
     container_name: chat_nginx
     restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      FRONTEND_UPSTREAM: frontend:5173
+      BACKEND_UPSTREAM: backend:3000
     ports:
       - "8085:80"
     depends_on:

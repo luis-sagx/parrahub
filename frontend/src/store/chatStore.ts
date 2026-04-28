@@ -24,6 +24,7 @@ interface ChatState {
 }
 
 const keepLastMessages = (messages: Message[]) =>
+  // Mantiene el chat liviano evitando crecer indefinidamente en memoria.
   messages.slice(-MAX_MESSAGES_IN_MEMORY)
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -36,6 +37,7 @@ export const useChatStore = create<ChatState>((set) => ({
   joinError: null,
 
   setRoom: (room, nickname) => {
+    // Guarda la sala activa y el nickname con el que entro el usuario.
     set({ currentRoom: room, nickname, joinError: null })
   },
 
@@ -44,6 +46,7 @@ export const useChatStore = create<ChatState>((set) => ({
   },
 
   addMessage: (message) => {
+    // Agrega mensajes nuevos sin superar el limite local.
     set((state) => ({
       messages: keepLastMessages([...state.messages, message]),
     }))
@@ -55,6 +58,7 @@ export const useChatStore = create<ChatState>((set) => ({
 
   addUser: (nickname) => {
     set((state) => {
+      // Evita duplicados si el backend repite un evento de presencia.
       if (state.connectedUsers.includes(nickname)) return state
 
       return {
@@ -82,6 +86,7 @@ export const useChatStore = create<ChatState>((set) => ({
   },
 
   clearRoom: () => {
+    // Estado inicial usado al salir o antes de intentar entrar a otra sala.
     set({
       currentRoom: null,
       nickname: '',

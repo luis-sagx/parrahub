@@ -70,7 +70,7 @@ describe('RoomsService', () => {
       maxFileSize: 10,
     };
     mockPrisma.room.findMany.mockResolvedValue([mockRoomData]);
-    const rooms = await service.findAll('a1');
+    const rooms = await service.findAll();
     rooms.forEach((r) => expect(r).not.toHaveProperty('pin'));
   });
 

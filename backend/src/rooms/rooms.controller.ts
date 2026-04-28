@@ -24,7 +24,6 @@ interface AuthRequest extends Request {
 }
 
 @Controller('rooms')
-@UseGuards(JwtAuthGuard)
 export class RoomsController {
   private readonly logger = new Logger(RoomsController.name);
 
@@ -34,6 +33,7 @@ export class RoomsController {
   ) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateRoomDto, @Request() req: AuthRequest) {
     const adminId = req.admin?.sub ?? '';
@@ -41,9 +41,14 @@ export class RoomsController {
   }
 
   @Get()
-  findAll(@Request() req: AuthRequest) {
-    const adminId = req.admin?.sub ?? '';
-    return this.roomsService.findAll(adminId);
+  @UseGuards(JwtAuthGuard)
+  findAll() {
+    return this.roomsService.findAll();
+  }
+
+  @Get('public')
+  findPublic() {
+    return this.roomsService.findPublic();
   }
 
   @Get(':id')
@@ -52,6 +57,7 @@ export class RoomsController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   delete(@Param('id') id: string, @Request() req: AuthRequest) {
     const adminId = req.admin?.sub ?? '';

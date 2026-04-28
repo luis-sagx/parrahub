@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { LockKeyhole, MessageSquareText, UserRound } from 'lucide-react'
+import { ArrowLeft, LockKeyhole, MessageSquareText, UserRound } from 'lucide-react'
 import { useForm } from 'react-hook-form'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,6 +20,7 @@ import { useAuthStore } from '@/store/authStore'
 export default function AdminLogin() {
   const navigate = useNavigate()
   const setToken = useAuthStore((state) => state.setToken)
+  // react-hook-form maneja el formulario y Zod valida usuario/contrasena.
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
@@ -35,10 +36,12 @@ export default function AdminLogin() {
 
   const onSubmit = async (credentials: LoginFormData) => {
     try {
+      // Si el backend acepta las credenciales, guardamos el JWT para las rutas privadas.
       const response = await login(credentials)
       setToken(response.access_token)
       navigate('/dashboard')
     } catch {
+      // El error root se muestra arriba del boton cuando falla el login completo.
       setError('root', {
         message: 'Credenciales invalidas o backend no disponible',
       })
@@ -49,6 +52,7 @@ export default function AdminLogin() {
     <main className="min-h-screen bg-[#08090a] text-[#f7f8f8]">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-6 py-10">
         <section className="grid w-full gap-10 lg:grid-cols-[1fr_420px] lg:items-center">
+          {/* Panel informativo visible en escritorio; en movil queda solo el formulario. */}
           <div className="hidden max-w-xl lg:block">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-[#d0d6e0]">
               <span className="h-1.5 w-1.5 rounded-full bg-[#10b981]" />
@@ -76,6 +80,7 @@ export default function AdminLogin() {
             </div>
           </div>
 
+          {/* Tarjeta principal con el formulario de acceso del administrador. */}
           <Card className="w-full border-white/[0.08] bg-[#0f1011]/95 text-[#f7f8f8] shadow-2xl shadow-black/40 ring-white/[0.06]">
             <CardHeader className="gap-4 px-6 pt-6">
               <div className="flex items-center justify-between gap-4">
@@ -174,6 +179,17 @@ export default function AdminLogin() {
                 Las credenciales se validan contra el backend NestJS y el token
                 se mantiene solo durante la sesion del navegador.
               </p>
+              <Button
+                asChild
+                className="mt-4 h-10 w-full border-white/[0.08] bg-white/[0.03] text-[#d0d6e0] hover:bg-white/[0.06]"
+                type="button"
+                variant="outline"
+              >
+                <Link to="/">
+                  <ArrowLeft className="h-4 w-4" />
+                  Volver al dashboard
+                </Link>
+              </Button>
             </CardContent>
           </Card>
         </section>

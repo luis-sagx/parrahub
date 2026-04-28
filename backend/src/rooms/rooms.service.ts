@@ -35,13 +35,17 @@ export class RoomsService {
     return roomWithoutPin;
   }
 
-  async findAll(adminId: string) {
+  async findAll() {
     const rooms = await this.prisma.room.findMany({
-      where: { adminId, isActive: true },
+      where: { isActive: true },
       orderBy: { createdAt: 'desc' },
     });
 
     return rooms.map(({ pin: _hashed, ...r }) => r);
+  }
+
+  async findPublic() {
+    return this.findAll();
   }
 
   async findOne(id: string) {

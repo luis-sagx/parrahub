@@ -1,7 +1,5 @@
-import { useState } from 'react'
-import { Copy, LogIn, LogOut, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { Copy, LogIn, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import CreateRoomModal from '@/components/rooms/CreateRoomModal'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,8 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useRooms } from '@/hooks/useRooms'
-import { useAuthStore } from '@/store/authStore'
+import { usePublicRooms } from '@/hooks/usePublicRooms'
 
 const formatDate = (value: string) =>
   // Formatea fechas del backend en espanol para mostrarlas en las tarjetas.
@@ -23,16 +20,13 @@ const formatDate = (value: string) =>
     year: 'numeric',
   }).format(new Date(value))
 
-export default function AdminDashboard() {
+export default function UserDashboard() {
   const navigate = useNavigate()
-  const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false)
-  const logout = useAuthStore((state) => state.logout)
-  // Hook centralizado para listar, crear, refrescar y eliminar salas.
-  const { rooms, isLoading, isError, refetchRooms, deleteRoom, isDeleting } =
-    useRooms()
+  // Hook publico para listar salas sin necesitar sesion de administrador.
+  const { rooms, isLoading, isError, refetchRooms } = usePublicRooms()
 
   const handleLogout = () => {
-    logout()
+    // logout()
     navigate('/login')
   }
 
@@ -49,7 +43,7 @@ export default function AdminDashboard() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div>
             <p className="text-sm text-[#8a8f98]">ParraHub</p>
-            <h1 className="text-xl font-medium">Dashboard admin</h1>
+            <h1 className="text-xl font-medium">Dashboard User</h1>
           </div>
 
           <div className="flex items-center gap-2">
@@ -63,8 +57,8 @@ export default function AdminDashboard() {
               Actualizar
             </Button>
             <Button onClick={handleLogout} type="button" variant="ghost">
-              <LogOut className="h-4 w-4" />
-              Salir
+              <LogIn className="h-4 w-4" />
+              Eres admin?
             </Button>
           </div>
         </div>
@@ -75,18 +69,9 @@ export default function AdminDashboard() {
           <div>
             <h2 className="text-2xl font-medium">Salas</h2>
             <p className="mt-1 text-sm text-[#8a8f98]">
-              Crea y administra las salas disponibles para tus usuarios.
+              Ingresa a una sala para comenzar a chatear
             </p>
           </div>
-
-          <Button
-            className="bg-[#5e6ad2] text-white hover:bg-[#7170ff]"
-            onClick={() => setIsCreateRoomOpen(true)}
-            type="button"
-          >
-            <Plus className="h-4 w-4" />
-            Crear sala
-          </Button>
         </div>
 
         {isLoading && (
@@ -103,7 +88,7 @@ export default function AdminDashboard() {
             <CardHeader>
               <CardTitle>No se pudieron cargar las salas</CardTitle>
               <CardDescription className="text-red-100/70">
-                Revisa que el backend este activo y que tu sesion sea valida.
+                Revisa que el backend este activo.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -112,10 +97,9 @@ export default function AdminDashboard() {
         {!isLoading && !isError && rooms.length === 0 && (
           <Card className="border-white/[0.08] bg-white/[0.025] text-[#f7f8f8]">
             <CardHeader>
-              <CardTitle>No tienes salas creadas aun</CardTitle>
+              <CardTitle>No hay salas en las que puedes ingresar</CardTitle>
               <CardDescription className="text-[#8a8f98]">
-                Cuando conectemos el modal, podras crear salas de texto o
-                multimedia desde este panel.
+                Cuando el Administrador cree nuevas salas, apareceran aqui para que puedas unirte a ellas.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -172,16 +156,6 @@ export default function AdminDashboard() {
                       <Copy className="h-4 w-4" />
                       Copiar link
                     </Button>
-                    <Button
-                      className="col-span-2"
-                      disabled={isDeleting}
-                      onClick={() => deleteRoom(room.id)}
-                      type="button"
-                      variant="destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Eliminar
-                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -190,11 +164,6 @@ export default function AdminDashboard() {
         )}
       </section>
 
-      {/* Modal controlado desde el dashboard para crear nuevas salas. */}
-      <CreateRoomModal
-        open={isCreateRoomOpen}
-        onOpenChange={setIsCreateRoomOpen}
-      />
     </main>
   )
 }

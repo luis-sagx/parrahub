@@ -13,10 +13,12 @@ export default function FileUpload() {
 
   const handleFile = (file?: File) => {
     if (!file) return
+    // Guardamos el nombre para feedback visual y luego delegamos validacion/subida al hook.
     setSelectedFileName(file.name)
     upload(file)
   }
 
+  // Defensa extra: aunque el padre lo oculte, este componente solo vive en multimedia.
   if (currentRoom?.type !== 'MULTIMEDIA') return null
 
   return (
@@ -25,6 +27,7 @@ export default function FileUpload() {
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => {
         event.preventDefault()
+        // Soporta arrastrar y soltar usando solo el primer archivo seleccionado.
         handleFile(event.dataTransfer.files[0])
       }}
     >

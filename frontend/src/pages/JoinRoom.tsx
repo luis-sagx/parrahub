@@ -19,6 +19,7 @@ export default function JoinRoom() {
   const { roomId } = useParams<{ roomId: string }>()
   const { connect } = useSocket()
   const { isJoining, joinError } = useChatStore()
+  // Formulario publico: valida PIN y nickname antes de abrir el WebSocket.
   const {
     formState: { errors },
     handleSubmit,
@@ -33,10 +34,12 @@ export default function JoinRoom() {
 
   const onSubmit = (data: JoinRoomFormData) => {
     if (!roomId) return
+    // connect emite join-room; la navegacion real ocurre cuando llega join-success.
     connect(roomId, data.pin, data.nickname)
   }
 
   if (!roomId) {
+    // Defensa para URLs incompletas, aunque normalmente la ruta exige :roomId.
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#08090a] px-6 text-[#f7f8f8]">
         <Card className="w-full max-w-md border-white/[0.08] bg-[#0f1011] text-[#f7f8f8]">
@@ -61,6 +64,7 @@ export default function JoinRoom() {
       <div className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center px-6 py-10">
         <section className="grid w-full gap-10 lg:grid-cols-[1fr_420px] lg:items-center">
           <div className="hidden max-w-xl lg:block">
+            {/* Resumen visible en escritorio con el ID para confirmar la sala destino. */}
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-[#d0d6e0]">
               <span className="h-1.5 w-1.5 rounded-full bg-[#10b981]" />
               Acceso publico a sala
@@ -80,6 +84,7 @@ export default function JoinRoom() {
             </div>
           </div>
 
+          {/* Formulario de ingreso para usuarios invitados. */}
           <Card className="w-full border-white/[0.08] bg-[#0f1011]/95 text-[#f7f8f8] shadow-2xl shadow-black/40 ring-white/[0.06]">
             <CardHeader className="gap-4 px-6 pt-6">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-[#5e6ad2] text-white shadow-lg shadow-[#5e6ad2]/20">
@@ -170,7 +175,7 @@ export default function JoinRoom() {
                   type="button"
                   variant="outline"
                 >
-                  <Link to="/dashboard">
+                  <Link to="/">
                     <ArrowLeft className="h-4 w-4" />
                     Volver al dashboard
                   </Link>

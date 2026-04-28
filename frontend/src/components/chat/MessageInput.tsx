@@ -11,18 +11,21 @@ export default function MessageInput() {
   const { currentRoom, isConnected } = useChatStore()
   const [content, setContent] = useState('')
 
+  // Se recorta el texto antes de validar/enviar para evitar mensajes vacios.
   const trimmedContent = content.trim()
   const canSend = isConnected && trimmedContent.length > 0
 
   const sendMessage = () => {
     if (!canSend) return
 
+    // Socket.IO envia el mensaje al backend; la lista se actualiza al recibir new-message.
     socket.emit('send-message', { content: trimmedContent })
     setContent('')
   }
 
   return (
-    <div className="border-t border-white/[0.08] bg-[#0f1011] p-3">
+    <div className="shrink-0 border-t border-white/[0.08] bg-[#0f1011] p-3">
+      {/* Las salas multimedia muestran el bloque de carga encima del texto. */}
       {currentRoom?.type === 'MULTIMEDIA' && <FileUpload />}
 
       <div className="mt-3 flex gap-2">
@@ -33,6 +36,7 @@ export default function MessageInput() {
           onChange={(event) => setContent(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
+              // Enter envia; Shift+Enter permite escribir en varias lineas.
               event.preventDefault()
               sendMessage()
             }

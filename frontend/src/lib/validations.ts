@@ -1,9 +1,11 @@
 import { z } from 'zod'
 
+// PIN compartido por crear sala y unirse a sala: solo digitos, 4 a 10 caracteres.
 const pinSchema = z
   .string()
   .regex(/^\d{4,10}$/, 'El PIN debe tener entre 4 y 10 digitos')
 
+// Validacion del formulario de login admin.
 export const loginSchema = z.object({
   username: z
     .string()
@@ -14,6 +16,7 @@ export const loginSchema = z.object({
     .min(8, 'La contrasena debe tener al menos 8 caracteres'),
 })
 
+// Validacion del modal para crear salas.
 export const createRoomSchema = z.object({
   name: z
     .string()
@@ -30,6 +33,7 @@ export const createRoomSchema = z.object({
     .optional(),
 })
 
+// Validacion del formulario publico de ingreso a sala.
 export const joinRoomSchema = z.object({
   pin: pinSchema,
   nickname: z

@@ -15,17 +15,24 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { useSocket } from '@/hooks/useSocket'
+import { getChatSession } from '@/lib/chatSession'
 import { useChatStore } from '@/store/chatStore'
 
 export default function ChatRoom() {
   const { roomId } = useParams<{ roomId: string }>()
   const navigate = useNavigate()
-  const { disconnect } = useSocket()
-  const { connectedUsers, currentRoom, isConnected } = useChatStore()
+  const { disconnect, reconnectFromSession } = useSocket()
+  const { connectedUsers, currentRoom, isConnected, isJoining, joinError } =
+    useChatStore()
+  const storedSession = roomId ? getChatSession() : null
+  const canReconnect = Boolean(
+    storedSession && storedSession.roomId === roomId && !joinError,
+  )
 
   useEffect(() => {
+    // Al cerrar o recargar la pestana se avisa al socket para limpiar la presencia.
     const handleBeforeUnload = () => {
-      disconnect()
+      disconnect(false)
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
@@ -35,22 +42,45 @@ export default function ChatRoom() {
     }
   }, [disconnect])
 
+  useEffect(() => {
+    if (!roomId || currentRoom || isConnected || isJoining) return
+    reconnectFromSession(roomId)
+  }, [currentRoom, isConnected, isJoining, reconnectFromSession, roomId])
+
   if (!roomId) {
+    // Sin ID no hay sala a la cual volver, asi que se manda al login.
     return <Navigate to="/login" replace />
   }
 
+  if (
+    (!currentRoom || !isConnected || currentRoom.id !== roomId) &&
+    canReconnect
+  ) {
+    return (
+      <main className="flex h-dvh items-center justify-center bg-[#08090a] px-6 text-[#f7f8f8]">
+        <div className="rounded-lg border border-white/[0.08] bg-[#0f1011] px-5 py-4 text-center">
+          <p className="text-sm text-[#d0d6e0]">
+            {joinError ?? 'Reconectando a la sala...'}
+          </p>
+        </div>
+      </main>
+    )
+  }
+
   if (!currentRoom || !isConnected || currentRoom.id !== roomId) {
+    // Evita entrar directo a /room/:id sin haber pasado por el PIN.
     return <Navigate to={`/join/${roomId}`} replace />
   }
 
   const handleLeave = () => {
+    // Salir desconecta el socket y devuelve al formulario de union.
     disconnect()
     navigate(`/join/${roomId}`)
   }
 
   return (
-    <main className="flex min-h-screen flex-col bg-[#08090a] text-[#f7f8f8]">
-      <header className="border-b border-white/[0.08] bg-[#0f1011]/95">
+    <main className="flex h-dvh overflow-hidden flex-col bg-[#08090a] text-[#f7f8f8]">
+      <header className="shrink-0 border-b border-white/[0.08] bg-[#0f1011]/95">
         <div className="flex items-center justify-between gap-4 px-4 py-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -73,6 +103,7 @@ export default function ChatRoom() {
             </Badge>
 
             <Sheet>
+              {/* En movil, la lista de usuarios vive en un panel lateral. */}
               <SheetTrigger asChild>
                 <Button
                   className="md:hidden"
@@ -105,13 +136,14 @@ export default function ChatRoom() {
         </div>
       </header>
 
-      <section className="grid min-h-0 flex-1 md:grid-cols-[240px_1fr]">
-        <div className="hidden min-h-0 border-r border-white/[0.08] md:block">
+      <section className="grid min-h-0 flex-1 overflow-hidden md:grid-cols-[240px_1fr]">
+        {/* En escritorio la lista de usuarios queda fija a la izquierda. */}
+        <div className="hidden min-h-0 overflow-hidden border-r border-white/[0.08] md:block">
           <UserList />
         </div>
 
-        <div className="flex min-h-0 flex-col">
-          <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="flex min-h-0 flex-col overflow-hidden">
+          <div className="min-h-0 flex-1">
             <MessageList />
           </div>
           <MessageInput />

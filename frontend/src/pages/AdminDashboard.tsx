@@ -36,7 +36,8 @@ export default function AdminDashboard() {
     navigate('/login')
   }
 
-  const getJoinUrl = (roomId: string) => `${window.location.origin}/join/${roomId}`
+  const getJoinUrl = (roomId: string) =>
+    `${window.location.origin}/join/${roomId}`
 
   const copyJoinUrl = async (roomId: string) => {
     // Copia el enlace publico que los invitados usan para unirse a la sala.
@@ -93,7 +94,10 @@ export default function AdminDashboard() {
           // Mientras React Query carga, se muestran tarjetas placeholder.
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {[1, 2, 3].map((item) => (
-              <Skeleton key={item} className="h-36 rounded-xl bg-white/[0.06]" />
+              <Skeleton
+                key={item}
+                className="h-36 rounded-xl bg-white/[0.06]"
+              />
             ))}
           </div>
         )}
@@ -150,11 +154,17 @@ export default function AdminDashboard() {
                     </p>
                   </div>
 
-                  <div className="flex items-center justify-between text-sm text-[#8a8f98]">
-                    <span>Max archivo: {room.maxFileSize} MB</span>
-                  </div>
+                  {room.type === 'MULTIMEDIA' ? (
+                    <span className="text-neutral-400">
+                      Max archivo: {room.maxFileSize} MB
+                    </span>
+                  ) : (
+                    <span className="text-neutral-400">
+                      Archivos: no permitidos
+                    </span>
+                  )}
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2 mt-2">
                     <Button
                       className="bg-[#5e6ad2] text-white hover:bg-[#7170ff]"
                       onClick={() => navigate(`/join/${room.id}`)}

@@ -82,8 +82,7 @@ export default function JoinRoom() {
               Entra a la conversacion con tu PIN.
             </h1>
             <p className="mt-5 max-w-lg text-base leading-7 text-slate-400">
-              Elige un nickname unico para esta sala. Si el PIN es correcto, el
-              backend abrira la sesion WebSocket y cargara el historial.
+              Elige un nickname unico para esta sala.
             </p>
             <div className="mt-8 rounded-lg border border-white/8 bg-white/[2.5%] p-4">
               <p className="text-xs uppercase text-zinc-500">Room ID</p>

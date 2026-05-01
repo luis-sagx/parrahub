@@ -72,17 +72,6 @@ export default function AdminLogin() {
               Crea salas, controla el acceso por PIN y prepara conversaciones de
               texto o multimedia desde una interfaz clara y rapida.
             </p>
-
-            <div className="mt-8 grid grid-cols-3 gap-3">
-              {['JWT', 'Rooms', 'Socket.IO'].map((item) => (
-                <div
-                  key={item}
-                  className="rounded-lg border border-white/8 bg-white/[2.5%] px-4 py-3 text-sm text-slate-300"
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
           </div>
 
           {/* Tarjeta principal con el formulario de acceso del administrador. */}
@@ -141,7 +130,7 @@ export default function AdminLogin() {
                     className="text-sm font-medium text-slate-300"
                     htmlFor="password"
                   >
-                    Contrasena
+                    Contraseña
                   </label>
                   <div className="relative">
                     <LockKeyhole
@@ -180,13 +169,9 @@ export default function AdminLogin() {
 
               <Separator className="my-5 bg-white/8" />
 
-              <p className="text-center text-xs leading-5 text-zinc-500">
-                Las credenciales se validan contra el backend NestJS y el token
-                se mantiene solo durante la sesion del navegador.
-              </p>
               <Button
                 asChild
-                className="mt-4 h-10 w-full border-white/8 bg-white/5 text-slate-300"
+                className="mt-2 h-10 w-full border-white/8 bg-white/5 text-slate-300"
                 type="button"
                 variant="outline"
               >

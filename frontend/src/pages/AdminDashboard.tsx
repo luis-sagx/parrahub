@@ -45,17 +45,17 @@ export default function AdminDashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-[#08090a] text-[#f7f8f8]">
-      <header className="border-b border-white/[0.08] bg-[#0f1011]/80">
+    <main className="min-h-screen bg-zinc-950 text-fg">
+      <header className="border-b border-white/8 bg-surface/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div>
-            <p className="text-sm text-[#8a8f98]">ParraHub</p>
+            <p className="text-sm text-slate-400">ParraHub</p>
             <h1 className="text-xl font-medium">Dashboard admin</h1>
           </div>
 
           <div className="flex items-center gap-2">
             <Button
-              className="border-white/[0.08] bg-white/[0.03] text-[#d0d6e0]"
+              className="border-white/8 bg-white/5 text-slate-300"
               onClick={() => refetchRooms()}
               type="button"
               variant="outline"
@@ -75,13 +75,13 @@ export default function AdminDashboard() {
         <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <h2 className="text-2xl font-medium">Salas</h2>
-            <p className="mt-1 text-sm text-[#8a8f98]">
+            <p className="mt-1 text-sm text-slate-400">
               Crea y administra las salas disponibles para tus usuarios.
             </p>
           </div>
 
           <Button
-            className="bg-[#5e6ad2] text-white hover:bg-[#7170ff]"
+            className="bg-brand text-white hover:bg-brand-hover"
             onClick={() => setIsCreateRoomOpen(true)}
             type="button"
           >
@@ -103,7 +103,7 @@ export default function AdminDashboard() {
         )}
 
         {isError && (
-          <Card className="border-red-500/20 bg-red-500/10 text-[#f7f8f8]">
+          <Card className="border-red-500/20 bg-red-500/10 text-fg">
             <CardHeader>
               <CardTitle>No se pudieron cargar las salas</CardTitle>
               <CardDescription className="text-red-100/70">
@@ -114,10 +114,10 @@ export default function AdminDashboard() {
         )}
 
         {!isLoading && !isError && rooms.length === 0 && (
-          <Card className="border-white/[0.08] bg-white/[0.025] text-[#f7f8f8]">
+          <Card className="border-white/8 bg-white/[2.5%] text-fg">
             <CardHeader>
               <CardTitle>No tienes salas creadas aun</CardTitle>
-              <CardDescription className="text-[#8a8f98]">
+              <CardDescription className="text-slate-400">
                 Cuando conectemos el modal, podras crear salas de texto o
                 multimedia desde este panel.
               </CardDescription>
@@ -129,44 +129,41 @@ export default function AdminDashboard() {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {rooms.map((room) => (
               // Cada tarjeta resume una sala y concentra sus acciones principales.
-              <Card
-                key={room.id}
-                className="border-white/[0.08] bg-[#0f1011] text-[#f7f8f8]"
-              >
+              <Card key={room.id} className="border-white/8 bg-surface text-fg">
                 <CardHeader>
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <CardTitle>{room.name}</CardTitle>
-                      <CardDescription className="mt-1 text-[#8a8f98]">
+                      <CardDescription className="mt-1 text-slate-400">
                         Creada el {formatDate(room.createdAt)}
                       </CardDescription>
                     </div>
-                    <Badge className="border-white/10 bg-white/[0.04] text-[#d0d6e0]">
+                    <Badge className="border-white/10 bg-white/[0.04] text-slate-300">
                       {room.type}
                     </Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="rounded-lg border border-white/[0.08] bg-white/[0.025] p-3">
-                    <p className="text-xs uppercase text-[#62666d]">ID sala</p>
-                    <p className="mt-1 truncate font-mono text-xs text-[#d0d6e0]">
+                  <div className="rounded-lg border border-white/8 bg-white/[2.5%] p-3">
+                    <p className="text-xs uppercase text-zinc-500">ID sala</p>
+                    <p className="mt-1 truncate font-mono text-xs text-slate-300">
                       {room.id}
                     </p>
                   </div>
 
                   {room.type === 'MULTIMEDIA' ? (
-                    <span className="text-neutral-400">
+                    <span className="text-slate-400">
                       Max archivo: {room.maxFileSize} MB
                     </span>
                   ) : (
-                    <span className="text-neutral-400">
+                    <span className="text-slate-400">
                       Archivos: no permitidos
                     </span>
                   )}
 
-                  <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div className="mt-2 grid grid-cols-2 gap-2">
                     <Button
-                      className="bg-[#5e6ad2] text-white hover:bg-[#7170ff]"
+                      className="bg-brand text-white hover:bg-brand-hover"
                       onClick={() => navigate(`/join/${room.id}`)}
                       type="button"
                     >
@@ -174,7 +171,7 @@ export default function AdminDashboard() {
                       Entrar
                     </Button>
                     <Button
-                      className="border-white/[0.08] bg-white/[0.03] text-[#d0d6e0]"
+                      className="border-white/8 bg-white/5 text-slate-300"
                       onClick={() => copyJoinUrl(room.id)}
                       type="button"
                       variant="outline"

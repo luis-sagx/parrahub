@@ -57,9 +57,9 @@ export default function ChatRoom() {
     canReconnect
   ) {
     return (
-      <main className="flex h-dvh items-center justify-center bg-[#08090a] px-6 text-[#f7f8f8]">
-        <div className="rounded-lg border border-white/[0.08] bg-[#0f1011] px-5 py-4 text-center">
-          <p className="text-sm text-[#d0d6e0]">
+      <main className="flex h-dvh items-center justify-center bg-zinc-950 px-6 text-fg">
+        <div className="rounded-lg border border-white/8 bg-surface px-5 py-4 text-center">
+          <p className="text-sm text-slate-300">
             {joinError ?? 'Reconectando a la sala...'}
           </p>
         </div>
@@ -79,25 +79,25 @@ export default function ChatRoom() {
   }
 
   return (
-    <main className="flex h-dvh overflow-hidden flex-col bg-[#08090a] text-[#f7f8f8]">
-      <header className="shrink-0 border-b border-white/[0.08] bg-[#0f1011]/95">
+    <main className="flex h-dvh flex-col overflow-hidden bg-zinc-950 text-fg">
+      <header className="shrink-0 border-b border-white/8 bg-surface/95">
         <div className="flex items-center justify-between gap-4 px-4 py-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="truncate text-base font-medium">
                 {currentRoom.name}
               </h1>
-              <Badge className="border-white/10 bg-white/[0.04] text-[#d0d6e0]">
+              <Badge className="border-white/10 bg-white/[0.04] text-slate-300">
                 {currentRoom.type}
               </Badge>
             </div>
-            <p className="mt-1 truncate font-mono text-xs text-[#8a8f98]">
+            <p className="mt-1 truncate font-mono text-xs text-slate-400">
               {currentRoom.id}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            <Badge className="hidden border-white/10 bg-white/[0.04] text-[#d0d6e0] sm:inline-flex">
+            <Badge className="hidden border-white/10 bg-white/[0.04] text-slate-300 sm:inline-flex">
               <UsersRound className="h-3.5 w-3.5" />
               {connectedUsers.length} usuarios
             </Badge>
@@ -116,12 +116,12 @@ export default function ChatRoom() {
                 </Button>
               </SheetTrigger>
               <SheetContent
-                className="border-white/[0.08] bg-[#0f1011] p-0 text-[#f7f8f8]"
+                className="border-white/8 bg-surface p-0 text-fg"
                 side="left"
               >
-                <SheetHeader className="border-b border-white/[0.08]">
-                  <SheetTitle className="text-[#f7f8f8]">Usuarios</SheetTitle>
-                  <SheetDescription className="text-[#8a8f98]">
+                <SheetHeader className="border-b border-white/8">
+                  <SheetTitle className="text-fg">Usuarios</SheetTitle>
+                  <SheetDescription className="text-slate-400">
                     Personas conectadas en esta sala.
                   </SheetDescription>
                 </SheetHeader>
@@ -138,7 +138,7 @@ export default function ChatRoom() {
 
       <section className="grid min-h-0 flex-1 overflow-hidden md:grid-cols-[240px_1fr]">
         {/* En escritorio la lista de usuarios queda fija a la izquierda. */}
-        <div className="hidden min-h-0 overflow-hidden border-r border-white/[0.08] md:block">
+        <div className="hidden min-h-0 overflow-hidden border-r border-white/8 md:block">
           <UserList />
         </div>
 

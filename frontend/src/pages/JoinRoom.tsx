@@ -1,5 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft, Hash, LogIn, MessageSquareText, UserRound } from 'lucide-react'
+import {
+  ArrowLeft,
+  Hash,
+  LogIn,
+  MessageSquareText,
+  UserRound,
+} from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { Link, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -41,16 +47,19 @@ export default function JoinRoom() {
   if (!roomId) {
     // Defensa para URLs incompletas, aunque normalmente la ruta exige :roomId.
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#08090a] px-6 text-[#f7f8f8]">
-        <Card className="w-full max-w-md border-white/[0.08] bg-[#0f1011] text-[#f7f8f8]">
+      <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-fg">
+        <Card className="w-full max-w-md border-white/8 bg-surface text-fg">
           <CardHeader>
             <CardTitle>Falta el ID de la sala</CardTitle>
-            <CardDescription className="text-[#8a8f98]">
+            <CardDescription className="text-slate-400">
               Usa una URL con el formato /join/:roomId para entrar.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild className="w-full bg-[#5e6ad2] text-white">
+            <Button
+              asChild
+              className="w-full bg-brand text-white hover:bg-brand-hover"
+            >
               <Link to="/login">Volver</Link>
             </Button>
           </CardContent>
@@ -60,41 +69,41 @@ export default function JoinRoom() {
   }
 
   return (
-    <main className="min-h-screen bg-[#08090a] text-[#f7f8f8]">
+    <main className="min-h-screen bg-zinc-950 text-fg">
       <div className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center px-6 py-10">
         <section className="grid w-full gap-10 lg:grid-cols-[1fr_420px] lg:items-center">
           <div className="hidden max-w-xl lg:block">
             {/* Resumen visible en escritorio con el ID para confirmar la sala destino. */}
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-[#d0d6e0]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#10b981]" />
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-slate-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               Acceso publico a sala
             </div>
             <h1 className="text-5xl font-medium leading-none tracking-normal">
               Entra a la conversacion con tu PIN.
             </h1>
-            <p className="mt-5 max-w-lg text-base leading-7 text-[#8a8f98]">
+            <p className="mt-5 max-w-lg text-base leading-7 text-slate-400">
               Elige un nickname unico para esta sala. Si el PIN es correcto, el
               backend abrira la sesion WebSocket y cargara el historial.
             </p>
-            <div className="mt-8 rounded-lg border border-white/[0.08] bg-white/[0.025] p-4">
-              <p className="text-xs uppercase text-[#62666d]">Room ID</p>
-              <p className="mt-2 break-all font-mono text-sm text-[#d0d6e0]">
+            <div className="mt-8 rounded-lg border border-white/8 bg-white/[2.5%] p-4">
+              <p className="text-xs uppercase text-zinc-500">Room ID</p>
+              <p className="mt-2 break-all font-mono text-sm text-slate-300">
                 {roomId}
               </p>
             </div>
           </div>
 
           {/* Formulario de ingreso para usuarios invitados. */}
-          <Card className="w-full border-white/[0.08] bg-[#0f1011]/95 text-[#f7f8f8] shadow-2xl shadow-black/40 ring-white/[0.06]">
+          <Card className="w-full border-white/8 bg-surface/95 text-fg shadow-2xl shadow-black/40 ring-1 ring-white/[0.06]">
             <CardHeader className="gap-4 px-6 pt-6">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-[#5e6ad2] text-white shadow-lg shadow-[#5e6ad2]/20">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-brand text-white shadow-lg shadow-brand/20">
                 <MessageSquareText className="h-5 w-5" aria-hidden="true" />
               </div>
               <div>
-                <CardTitle className="text-2xl font-medium text-[#f7f8f8]">
+                <CardTitle className="text-2xl font-medium text-fg">
                   Unirse a sala
                 </CardTitle>
-                <CardDescription className="mt-2 text-[#8a8f98]">
+                <CardDescription className="mt-2 text-slate-400">
                   Ingresa el PIN y un nickname para continuar.
                 </CardDescription>
               </div>
@@ -104,19 +113,19 @@ export default function JoinRoom() {
               <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
                 <div className="space-y-2">
                   <label
-                    className="text-sm font-medium text-[#d0d6e0]"
+                    className="text-sm font-medium text-slate-300"
                     htmlFor="pin"
                   >
                     PIN
                   </label>
                   <div className="relative">
                     <Hash
-                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#62666d]"
+                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
                       aria-hidden="true"
                     />
                     <Input
                       id="pin"
-                      className="h-10 border-white/[0.08] bg-white/[0.03] pl-9 text-[#f7f8f8] placeholder:text-[#62666d] focus-visible:border-[#7170ff] focus-visible:ring-[#7170ff]/30"
+                      className="h-10 border-white/8 bg-white/5 pl-9 text-fg placeholder:text-zinc-500 focus-visible:border-brand-hover focus-visible:ring-brand-hover/30"
                       inputMode="numeric"
                       placeholder="1234"
                       type="password"
@@ -130,19 +139,19 @@ export default function JoinRoom() {
 
                 <div className="space-y-2">
                   <label
-                    className="text-sm font-medium text-[#d0d6e0]"
+                    className="text-sm font-medium text-slate-300"
                     htmlFor="nickname"
                   >
                     Nickname
                   </label>
                   <div className="relative">
                     <UserRound
-                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#62666d]"
+                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
                       aria-hidden="true"
                     />
                     <Input
                       id="nickname"
-                      className="h-10 border-white/[0.08] bg-white/[0.03] pl-9 text-[#f7f8f8] placeholder:text-[#62666d] focus-visible:border-[#7170ff] focus-visible:ring-[#7170ff]/30"
+                      className="h-10 border-white/8 bg-white/5 pl-9 text-fg placeholder:text-zinc-500 focus-visible:border-brand-hover focus-visible:ring-brand-hover/30"
                       placeholder="tu_nombre"
                       {...register('nickname')}
                     />
@@ -161,7 +170,7 @@ export default function JoinRoom() {
                 )}
 
                 <Button
-                  className="h-10 w-full bg-[#5e6ad2] text-white hover:bg-[#7170ff]"
+                  className="h-10 w-full bg-brand text-white hover:bg-brand-hover"
                   disabled={isJoining}
                   type="submit"
                 >
@@ -171,7 +180,7 @@ export default function JoinRoom() {
 
                 <Button
                   asChild
-                  className="h-10 w-full border-white/[0.08] bg-white/[0.03] text-[#d0d6e0] hover:bg-white/[0.06]"
+                  className="h-10 w-full border-white/8 bg-white/5 text-slate-300"
                   type="button"
                   variant="outline"
                 >

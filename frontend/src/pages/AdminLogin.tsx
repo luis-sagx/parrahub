@@ -1,5 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft, LockKeyhole, MessageSquareText, UserRound } from 'lucide-react'
+import {
+  ArrowLeft,
+  LockKeyhole,
+  MessageSquareText,
+  UserRound,
+} from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
@@ -49,30 +54,30 @@ export default function AdminLogin() {
   }
 
   return (
-    <main className="min-h-screen bg-[#08090a] text-[#f7f8f8]">
+    <main className="min-h-screen bg-zinc-950 text-fg">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-6 py-10">
         <section className="grid w-full gap-10 lg:grid-cols-[1fr_420px] lg:items-center">
           {/* Panel informativo visible en escritorio; en movil queda solo el formulario. */}
           <div className="hidden max-w-xl lg:block">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-[#d0d6e0]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#10b981]" />
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-slate-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               Sistema de chat en tiempo real
             </div>
 
-            <h1 className="text-5xl font-medium leading-none tracking-normal text-[#f7f8f8]">
+            <h1 className="text-5xl font-medium leading-none tracking-normal text-fg">
               Panel de control para administrar tus salas.
             </h1>
 
-            <p className="mt-5 max-w-lg text-base leading-7 text-[#8a8f98]">
-              Crea salas, controla el acceso por PIN y prepara conversaciones
-              de texto o multimedia desde una interfaz clara y rapida.
+            <p className="mt-5 max-w-lg text-base leading-7 text-slate-400">
+              Crea salas, controla el acceso por PIN y prepara conversaciones de
+              texto o multimedia desde una interfaz clara y rapida.
             </p>
 
             <div className="mt-8 grid grid-cols-3 gap-3">
               {['JWT', 'Rooms', 'Socket.IO'].map((item) => (
                 <div
                   key={item}
-                  className="rounded-lg border border-white/[0.08] bg-white/[0.025] px-4 py-3 text-sm text-[#d0d6e0]"
+                  className="rounded-lg border border-white/8 bg-white/[2.5%] px-4 py-3 text-sm text-slate-300"
                 >
                   {item}
                 </div>
@@ -81,22 +86,22 @@ export default function AdminLogin() {
           </div>
 
           {/* Tarjeta principal con el formulario de acceso del administrador. */}
-          <Card className="w-full border-white/[0.08] bg-[#0f1011]/95 text-[#f7f8f8] shadow-2xl shadow-black/40 ring-white/[0.06]">
+          <Card className="w-full border-white/8 bg-surface/95 text-fg shadow-2xl shadow-black/40 ring-1 ring-white/[0.06]">
             <CardHeader className="gap-4 px-6 pt-6">
               <div className="flex items-center justify-between gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-[#5e6ad2] text-white shadow-lg shadow-[#5e6ad2]/20">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-brand text-white shadow-lg shadow-brand/20">
                   <MessageSquareText className="h-5 w-5" aria-hidden="true" />
                 </div>
-                <Badge className="border-white/10 bg-white/[0.04] text-[#d0d6e0]">
+                <Badge className="border-white/10 bg-white/[0.04] text-slate-300">
                   Admin
                 </Badge>
               </div>
 
               <div>
-                <CardTitle className="text-2xl font-medium text-[#f7f8f8]">
+                <CardTitle className="text-2xl font-medium text-fg">
                   Iniciar sesion
                 </CardTitle>
-                <CardDescription className="mt-2 text-[#8a8f98]">
+                <CardDescription className="mt-2 text-slate-400">
                   Accede para crear y gestionar salas privadas.
                 </CardDescription>
               </div>
@@ -106,19 +111,19 @@ export default function AdminLogin() {
               <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
                 <div className="space-y-2">
                   <label
-                    className="text-sm font-medium text-[#d0d6e0]"
+                    className="text-sm font-medium text-slate-300"
                     htmlFor="username"
                   >
                     Usuario
                   </label>
                   <div className="relative">
                     <UserRound
-                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#62666d]"
+                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
                       aria-hidden="true"
                     />
                     <Input
                       id="username"
-                      className="h-10 border-white/[0.08] bg-white/[0.03] pl-9 text-[#f7f8f8] placeholder:text-[#62666d] focus-visible:border-[#7170ff] focus-visible:ring-[#7170ff]/30"
+                      className="h-10 border-white/8 bg-white/5 pl-9 text-fg placeholder:text-zinc-500 focus-visible:border-brand-hover focus-visible:ring-brand-hover/30"
                       type="text"
                       placeholder="admin"
                       {...register('username')}
@@ -133,19 +138,19 @@ export default function AdminLogin() {
 
                 <div className="space-y-2">
                   <label
-                    className="text-sm font-medium text-[#d0d6e0]"
+                    className="text-sm font-medium text-slate-300"
                     htmlFor="password"
                   >
                     Contrasena
                   </label>
                   <div className="relative">
                     <LockKeyhole
-                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#62666d]"
+                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
                       aria-hidden="true"
                     />
                     <Input
                       id="password"
-                      className="h-10 border-white/[0.08] bg-white/[0.03] pl-9 text-[#f7f8f8] placeholder:text-[#62666d] focus-visible:border-[#7170ff] focus-visible:ring-[#7170ff]/30"
+                      className="h-10 border-white/8 bg-white/5 pl-9 text-fg placeholder:text-zinc-500 focus-visible:border-brand-hover focus-visible:ring-brand-hover/30"
                       type="password"
                       placeholder="Minimo 8 caracteres"
                       {...register('password')}
@@ -165,7 +170,7 @@ export default function AdminLogin() {
                 )}
 
                 <Button
-                  className="h-10 w-full bg-[#5e6ad2] text-white hover:bg-[#7170ff]"
+                  className="h-10 w-full bg-brand text-white hover:bg-brand-hover"
                   disabled={isSubmitting}
                   type="submit"
                 >
@@ -173,15 +178,15 @@ export default function AdminLogin() {
                 </Button>
               </form>
 
-              <Separator className="my-5 bg-white/[0.08]" />
+              <Separator className="my-5 bg-white/8" />
 
-              <p className="text-center text-xs leading-5 text-[#62666d]">
+              <p className="text-center text-xs leading-5 text-zinc-500">
                 Las credenciales se validan contra el backend NestJS y el token
                 se mantiene solo durante la sesion del navegador.
               </p>
               <Button
                 asChild
-                className="mt-4 h-10 w-full border-white/[0.08] bg-white/[0.03] text-[#d0d6e0] hover:bg-white/[0.06]"
+                className="mt-4 h-10 w-full border-white/8 bg-white/5 text-slate-300"
                 type="button"
                 variant="outline"
               >

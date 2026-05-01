@@ -15,7 +15,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { useSocket } from '@/hooks/useSocket'
-import { getChatSession } from '@/lib/chatSession'
+import { clearChatSession, getChatSession } from '@/lib/chatSession'
 import { useChatStore } from '@/store/chatStore'
 
 export default function ChatRoom() {
@@ -43,9 +43,29 @@ export default function ChatRoom() {
   }, [disconnect])
 
   useEffect(() => {
-    if (!roomId || currentRoom || isConnected || isJoining) return
-    reconnectFromSession(roomId)
-  }, [currentRoom, isConnected, isJoining, reconnectFromSession, roomId])
+    if (!roomId) return
+
+    // Si hay sesión guardada para esta sala, intenta reconectar silenciosamente.
+    if (storedSession && storedSession.roomId === roomId) {
+      if (!currentRoom && !isConnected && !isJoining) {
+        reconnectFromSession(roomId)
+      }
+      return
+    }
+
+    // Si no hay sesión ni conexión activa, redirige al formulario de join.
+    if (!currentRoom && !isConnected && !isJoining) {
+      navigate(`/join/${roomId}`, { replace: true })
+    }
+  }, [
+    currentRoom,
+    isConnected,
+    isJoining,
+    reconnectFromSession,
+    roomId,
+    storedSession,
+    navigate,
+  ])
 
   if (!roomId) {
     // Sin ID no hay sala a la cual volver, asi que se manda al login.
@@ -74,6 +94,8 @@ export default function ChatRoom() {
 
   const handleLeave = () => {
     // Salir desconecta el socket y devuelve al formulario de union.
+    // Limpia también la sesión guardada para evitar reconexión automática.
+    clearChatSession()
     disconnect()
     navigate(`/join/${roomId}`)
   }
@@ -87,7 +109,7 @@ export default function ChatRoom() {
               <h1 className="truncate text-base font-medium">
                 {currentRoom.name}
               </h1>
-              <Badge className="border-white/10 bg-white/[0.04] text-slate-300">
+              <Badge className="border-white/10 bg-white/4 text-slate-300">
                 {currentRoom.type}
               </Badge>
             </div>
@@ -97,7 +119,7 @@ export default function ChatRoom() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Badge className="hidden border-white/10 bg-white/[0.04] text-slate-300 sm:inline-flex">
+            <Badge className="hidden border-white/10 bg-white/4 text-slate-300 sm:inline-flex">
               <UsersRound className="h-3.5 w-3.5" />
               {connectedUsers.length} usuarios
             </Badge>

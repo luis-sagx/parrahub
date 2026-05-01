@@ -9,10 +9,17 @@ const instance = axios.create({
 
 instance.interceptors.request.use((config) => {
   // Inyecta el Bearer token en cada peticion privada si existe una sesion admin.
-  const token = useAuthStore.getState().token ?? sessionStorage.getItem('authToken')
+  const token =
+    useAuthStore.getState().token ?? sessionStorage.getItem('authToken')
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+
+  // Inyecta el deviceId en el header para validar en el backend.
+  const deviceId = localStorage.getItem('chat_device_id')
+  if (deviceId) {
+    config.headers['x-device-id'] = deviceId
   }
 
   return config

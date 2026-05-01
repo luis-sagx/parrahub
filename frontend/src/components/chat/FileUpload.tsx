@@ -56,7 +56,7 @@ export default function FileUpload() {
           onClick={() => inputRef.current?.click()}
           size="sm"
           type="button"
-          variant="outline"
+          variant="secondary"
         >
           <Paperclip className="h-4 w-4" />
           Adjuntar

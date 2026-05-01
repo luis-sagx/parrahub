@@ -15,6 +15,8 @@ interface JoinSuccessPayload {
   nickname: string
   room?: Room
   history?: Message[]
+  users?: string[]
+  reconnected?: boolean
 }
 
 interface UsersUpdatedPayload {
@@ -29,6 +31,7 @@ interface SocketErrorPayload {
     | 'ALREADY_IN_ROOM'
     | 'NOT_IN_ROOM'
     | 'MESSAGE_TOO_LONG'
+    | 'MISSING_DEVICE_ID'
   message?: string
 }
 
@@ -50,6 +53,7 @@ const socketErrorMessages: Record<SocketErrorPayload['code'], string> = {
   ALREADY_IN_ROOM: 'Ya estas conectado en otra sala',
   NOT_IN_ROOM: 'Debes unirte a una sala primero',
   MESSAGE_TOO_LONG: 'El mensaje no puede tener mas de 1000 caracteres',
+  MISSING_DEVICE_ID: 'No se pudo identificar este dispositivo',
 }
 
 // Evita registrar los mismos listeners muchas veces cuando varios componentes usan el hook.
@@ -96,21 +100,27 @@ export function useSocket() {
 
     const handleJoinSuccess = (payload: JoinSuccessPayload) => {
       // Al unirse, guardamos sala, usuario e historial, y entramos al chat.
+      // reconnected: true indica que ya estábamos en esta sala (refresco).
       setRoom(buildRoomFromJoin(payload), payload.nickname)
       setMessages(payload.history ?? [])
+      setUsers(payload.users ?? [])
       setJoinError(null)
       setJoining(false)
       setConnected(true)
 
       if (pendingSession?.roomId === payload.roomId) {
         saveChatSession({
-          ...pendingSession,
+          roomId: payload.roomId,
           nickname: payload.nickname,
+          pin: pendingSession.pin,
         })
         pendingSession = null
       }
 
-      navigate(`/room/${payload.roomId}`)
+      // Si es una reconexión silenciosa, no navegamos (ya estamos en /room/:roomId)
+      if (!payload.reconnected) {
+        navigate(`/room/${payload.roomId}`)
+      }
     }
 
     const handleNewMessage = (message: Message) => {
@@ -146,6 +156,21 @@ export function useSocket() {
       setConnected(false)
     }
 
+    const handleKicked = (data: { reason: string; message: string }) => {
+      // El usuario fue desconectado por inactividad o por otra razón.
+      clearChatSession()
+      clearRoom()
+
+      // Muestra notificación y navega al formulario de unirse
+      const roomId = window.location.pathname.split('/').pop()
+      if (roomId) {
+        navigate(`/join/${roomId}`, { replace: true })
+      }
+
+      setJoinError(`Sesión cerrada: ${data.message}`)
+      socket.disconnect()
+    }
+
     socket.on('connect', handleConnect)
     socket.on('disconnect', handleDisconnect)
     socket.on('join-success', handleJoinSuccess)
@@ -155,6 +180,7 @@ export function useSocket() {
     socket.on('new-file', handleNewFile)
     socket.on('error', handleSocketError)
     socket.on('connect_error', handleConnectError)
+    socket.on('kicked', handleKicked)
 
     return () => {
       socket.off('connect', handleConnect)
@@ -166,6 +192,7 @@ export function useSocket() {
       socket.off('new-file', handleNewFile)
       socket.off('error', handleSocketError)
       socket.off('connect_error', handleConnectError)
+      socket.off('kicked', handleKicked)
       listenersRegistered = false
     }
   }, [
@@ -194,13 +221,25 @@ export function useSocket() {
       setJoinError(null)
 
       if (socket.connected) {
-        // Si ya habia una conexion, se reinicia para evitar quedar en dos salas.
-        socket.once('disconnect', () => {
-          setConnected(false)
-          socket.once('connect', joinRoom)
-          socket.connect()
+        // Cambio de sala intencional: limpiar sesion actual en backend antes de reconectar.
+        socket.emit('leave-room', {}, () => {
+          socket.once('disconnect', () => {
+            setConnected(false)
+            socket.once('connect', joinRoom)
+            socket.connect()
+          })
+          socket.disconnect()
         })
-        socket.disconnect()
+
+        setTimeout(() => {
+          if (!socket.connected) return
+          socket.once('disconnect', () => {
+            setConnected(false)
+            socket.once('connect', joinRoom)
+            socket.connect()
+          })
+          socket.disconnect()
+        }, 300)
         return
       }
 
@@ -218,22 +257,34 @@ export function useSocket() {
         return false
       }
 
-      connect(session.roomId, session.pin, session.nickname)
+      connect(session.roomId, session.pin || '', session.nickname)
       return true
     },
     [connect],
   )
 
-  const disconnect = useCallback((clearStoredSession = true) => {
-    // Salida manual: desconecta el transporte y limpia el estado del chat.
-    if (clearStoredSession) {
-      clearChatSession()
-    }
+  const disconnect = useCallback(
+    (clearStoredSession = true) => {
+      // Salida manual: desconecta el transporte y limpia el estado del chat.
+      if (clearStoredSession) {
+        clearChatSession()
+        if (socket.connected) {
+          socket.emit('leave-room', {})
+          setTimeout(() => {
+            pendingSession = null
+            socket.disconnect()
+            clearRoom()
+          }, 150)
+          return
+        }
+      }
 
-    pendingSession = null
-    socket.disconnect()
-    clearRoom()
-  }, [clearRoom])
+      pendingSession = null
+      socket.disconnect()
+      clearRoom()
+    },
+    [clearRoom],
+  )
 
   const sendMessage = useCallback((content: string) => {
     // Funcion auxiliar para componentes que prefieran usar el hook en vez del socket directo.

@@ -22,19 +22,19 @@ npm i react react-dom socket.io-client zustand \
 
 ## Backend
 
-| Librería                                    | Uso                                                     |
-| ------------------------------------------- | ------------------------------------------------------- |
-| `@nestjs/core` + `@nestjs/platform-express` | Framework principal                                     |
-| `@nestjs/websockets` + `socket.io`          | WebSockets con rooms nativas                            |
-| `bullmq`                                    | Cola de jobs para procesar archivos (corre sobre Redis) |
-| `jsonwebtoken` + `@nestjs/jwt`              | Tokens del admin                                        |
-| `bcrypt`                                    | Hasheo de contraseñas y PINs                            |
-| `class-validator` + `class-transformer`     | Validación de DTOs, previene inyecciones                |
-| `multer` + `@nestjs/platform-express`       | Recepción de archivos en el servidor                    |
-| `prisma`                                    | ORM para PostgreSQL con tipos TypeScript automáticos    |
-| `mongoose`                                  | ODM para MongoDB (mensajes)                             |
-| `ioredis`                                   | Cliente Redis para sesiones y BullMQ                    |
-| `aws-sdk` (o `minio` client)                | Interfaz con MinIO                                      |
+| Librería                                    | Uso                                                       |
+| ------------------------------------------- | --------------------------------------------------------- |
+| `@nestjs/core` + `@nestjs/platform-express` | Framework principal                                       |
+| `@nestjs/websockets` + `socket.io`          | WebSockets con rooms nativas                              |
+| `bullmq`                                    | Cola de jobs para procesar archivos (corre sobre Redis)   |
+| `jsonwebtoken` + `@nestjs/jwt`              | Tokens del admin                                          |
+| `bcrypt`                                    | Hasheo de contraseñas y PINs                              |
+| `class-validator` + `class-transformer`     | Validación de DTOs, previene inyecciones                  |
+| `multer` + `@nestjs/platform-express`       | Recepción de archivos en el servidor                      |
+| `prisma`                                    | ORM para PostgreSQL con tipos TypeScript automáticos      |
+| `mongoose`                                  | ODM para MongoDB (mensajes)                               |
+| `ioredis`                                   | Cliente Redis para sesiones por deviceId, gracia y BullMQ |
+| `aws-sdk` (o `minio` client)                | Interfaz con MinIO                                        |
 
 ```bash
 npm i @nestjs/core @nestjs/platform-express @nestjs/websockets \
@@ -177,7 +177,7 @@ chat-realtime/
 │   │   │
 │   │   ├── redis/
 │   │   │   ├── redis.module.ts     # Configura ioredis desde .env, exportable a todos los módulos
-│   │   │   └── redis.service.ts    # setSession(ip, roomId, ttl), getSession(ip), getRoomUsers(roomId)
+│   │   │   └── redis.service.ts    # setSession(deviceId, roomId, ttl), grace:{deviceId}, getRoomUsers(roomId)
 │   │   │
 │   │   ├── prisma/
 │   │   │   ├── prisma.module.ts    # Singleton global del PrismaClient
@@ -248,7 +248,7 @@ chat-realtime/
 │   │   │   └── filesApi.ts         # uploadFile(file, roomId) con multipart/form-data y progreso
 │   │   │
 │   │   ├── lib/
-│   │   │   ├── socket.ts           # Singleton Socket.IO: withCredentials, autoConnect:false
+│   │   │   ├── socket.ts           # Singleton Socket.IO: withCredentials, autoConnect:false, auth.deviceId persistente
 │   │   │   ├── queryClient.ts      # QueryClient global con staleTime y retry configurados
 │   │   │   └── validations.ts      # Schemas Zod: pinSchema (min 4 dígitos), nicknameSchema (max 20)
 │   │   │

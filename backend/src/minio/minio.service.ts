@@ -68,6 +68,10 @@ export class MinioService implements OnModuleInit {
     return this.getPublicUrl(key);
   }
 
+  buildPublicUrl(key: string): string {
+    return this.getPublicUrl(key);
+  }
+
   async getPresignedUrl(key: string, expirySeconds = 3600): Promise<string> {
     return getSignedUrl(
       this.client,
@@ -95,8 +99,13 @@ export class MinioService implements OnModuleInit {
 
   extractKeyFromUrl(url: string): string {
     const marker = `/${this.bucket}/`;
-    const [, key] = url.split(marker);
-    return key || url;
+    const [, keyFromPath] = url.split(marker);
+
+    if (keyFromPath) {
+      return decodeURIComponent(keyFromPath.split('?')[0]);
+    }
+
+    return decodeURIComponent(url.split('?')[0]);
   }
 
   private async ensureBucket() {

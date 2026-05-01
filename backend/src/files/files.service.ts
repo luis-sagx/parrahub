@@ -8,6 +8,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { RoomType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { MinioService } from '../minio/minio.service';
 import {
   ALLOWED_MIME_TYPES,
   DEFAULT_MAX_FILE_SIZE_MB,
@@ -27,6 +28,7 @@ export interface UploadJobData {
 export class FilesService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly minioService: MinioService,
     @InjectQueue(FILE_PROCESSING_QUEUE)
     private readonly fileQueue: Queue<UploadJobData>,
   ) {}
@@ -96,9 +98,17 @@ export class FilesService {
   }
 
   async getFilesForRoom(roomId: string) {
-    return this.prisma.fileMetadata.findMany({
+    const files = await this.prisma.fileMetadata.findMany({
       where: { roomId },
       orderBy: { createdAt: 'desc' },
+    });
+
+    return files.map((file) => {
+      const key = this.minioService.extractKeyFromUrl(file.url);
+      return {
+        ...file,
+        url: this.minioService.buildPublicUrl(key),
+      };
     });
   }
 }

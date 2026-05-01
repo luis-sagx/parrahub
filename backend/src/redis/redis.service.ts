@@ -12,6 +12,11 @@ export interface SessionData {
   joinedAt: number;
 }
 
+export interface GraceData {
+  roomId: string;
+  nickname: string;
+}
+
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
@@ -32,24 +37,24 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     await this.client.quit();
   }
 
-  // Sesiones por IP
+  // Sesiones por deviceId
   async setSession(
-    ip: string,
+    deviceId: string,
     roomId: string,
     nickname: string,
     ttlSeconds = 7200,
   ): Promise<void> {
     const data: SessionData = { roomId, nickname, joinedAt: Date.now() };
     await this.client.set(
-      `session:${ip}`,
+      `session:${deviceId}`,
       JSON.stringify(data),
       'EX',
       ttlSeconds,
     );
   }
 
-  async getSession(ip: string): Promise<SessionData | null> {
-    const raw = await this.client.get(`session:${ip}`);
+  async getSession(deviceId: string): Promise<SessionData | null> {
+    const raw = await this.client.get(`session:${deviceId}`);
     if (!raw) return null;
     try {
       const parsed = JSON.parse(raw) as SessionData;
@@ -59,12 +64,41 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async deleteSession(ip: string): Promise<void> {
-    await this.client.del(`session:${ip}`);
+  async deleteSession(deviceId: string): Promise<void> {
+    await this.client.del(`session:${deviceId}`);
   }
 
-  async hasActiveSession(ip: string): Promise<boolean> {
-    return (await this.client.exists(`session:${ip}`)) === 1;
+  async hasActiveSession(deviceId: string): Promise<boolean> {
+    return (await this.client.exists(`session:${deviceId}`)) === 1;
+  }
+
+  async setGrace(
+    deviceId: string,
+    graceData: GraceData,
+    ttlSeconds = 30,
+  ): Promise<void> {
+    await this.client.set(
+      `grace:${deviceId}`,
+      JSON.stringify(graceData),
+      'EX',
+      ttlSeconds,
+    );
+  }
+
+  async getGrace(deviceId: string): Promise<GraceData | null> {
+    const raw = await this.client.get(`grace:${deviceId}`);
+    if (!raw) return null;
+
+    try {
+      const parsed = JSON.parse(raw) as GraceData;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  async deleteGrace(deviceId: string): Promise<void> {
+    await this.client.del(`grace:${deviceId}`);
   }
 
   // Usuarios por sala

@@ -19,14 +19,22 @@ export class WsSessionGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const client: Socket = context.switchToWs().getClient();
-    const ip = client.handshake.address;
+    const deviceId = String(client.handshake.auth?.deviceId ?? '');
     const data: RoomData = context.switchToWs().getData();
     const roomId = data.roomId ?? '';
 
-    const session = await this.redisService.getSession(ip);
+    if (!deviceId) {
+      client.emit('error', {
+        code: 'MISSING_DEVICE_ID',
+        message: 'Falta deviceId en el handshake',
+      });
+      return false;
+    }
+
+    const session = await this.redisService.getSession(deviceId);
     if (session && session.roomId !== roomId) {
       this.logger.warn(
-        `IP ${ip} intentó unirse a sala ${roomId} pero ya está en ${session.roomId}`,
+        `deviceId ${deviceId} intentó unirse a sala ${roomId} pero ya está en ${session.roomId}`,
       );
       client.emit('error', {
         code: 'ALREADY_IN_ROOM',

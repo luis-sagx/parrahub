@@ -29,7 +29,10 @@ async function main() {
   }
 
   const admin = await prisma.admin.create({
-    data: { username, password: hashedPassword },
+    data: {
+      username,
+      password: hashedPassword,
+    },
   });
 
   console.log(`Admin creado: ${admin.username} (id: ${admin.id})`);

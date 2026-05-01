@@ -2,9 +2,9 @@ import {
   Body,
   Controller,
   Get,
-  Ip,
   Param,
   Post,
+  Headers,
   UnauthorizedException,
   UploadedFile,
   UseInterceptors,
@@ -26,9 +26,9 @@ export class FilesController {
   async upload(
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadFileDto,
-    @Ip() ip: string,
+    @Headers('x-device-id') deviceId: string,
   ) {
-    const session = await this.redisService.getSession(ip);
+    const session = await this.redisService.getSession(deviceId);
     if (!session || session.roomId !== dto.roomId) {
       throw new UnauthorizedException(
         'Debes estar unido a la sala para subir archivos',

@@ -43,8 +43,9 @@ export default function UserDashboard() {
       <header className="border-b border-white/8 bg-surface/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div>
-            <p className="text-sm text-slate-400">ParraHub</p>
-            <h1 className="text-xl font-medium">Dashboard User</h1>
+            <h1 className="text-xl font-semibold">
+              Parra <span className="bg-brand p-1 rounded ml-0.5">hub</span>
+            </h1>
           </div>
 
           <div className="flex items-center gap-2">

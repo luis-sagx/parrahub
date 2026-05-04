@@ -22,13 +22,13 @@ export function useFileUpload() {
     // No se permite subir nada si el usuario no esta unido a una sala.
     if (!currentRoom) {
       setError('No hay una sala activa')
-      return
+      return false
     }
 
     // Primera validacion local para evitar enviar archivos que el backend rechazaria.
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
       setError('Tipo de archivo no permitido')
-      return
+      return false
     }
 
     const maxBytes = currentRoom.maxFileSize * 1024 * 1024
@@ -36,7 +36,7 @@ export function useFileUpload() {
     // El limite viene de la configuracion de la sala.
     if (file.size > maxBytes) {
       setError(`Archivo demasiado grande (max ${currentRoom.maxFileSize}MB)`)
-      return
+      return false
     }
 
     try {
@@ -47,15 +47,17 @@ export function useFileUpload() {
       // El servicio hace la peticion multipart y reporta avance con onUploadProgress.
       await uploadFileRequest(file, currentRoom.id, nickname, setProgress)
       setProgress(100)
+      return true
     } catch (err) {
       if (axios.isAxiosError(err)) {
         // NestJS puede devolver message como string o arreglo de strings.
         const message = err.response?.data?.message
         setError(Array.isArray(message) ? message.join(', ') : message ?? 'No se pudo subir el archivo')
-        return
+        return false
       }
 
       setError('No se pudo subir el archivo')
+      return false
     } finally {
       setIsUploading(false)
     }

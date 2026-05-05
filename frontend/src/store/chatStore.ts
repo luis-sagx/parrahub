@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Message, Room } from '@/types'
+import type { Message, MessageReaction, Room } from '@/types'
 
 const MAX_MESSAGES_IN_MEMORY = 200
 
@@ -14,6 +14,10 @@ interface ChatState {
   setRoom: (room: Room, nickname: string) => void
   setMessages: (messages: Message[]) => void
   addMessage: (message: Message) => void
+  updateMessageReactions: (
+    messageId: string,
+    reactions: MessageReaction[],
+  ) => void
   setUsers: (users: string[]) => void
   addUser: (nickname: string) => void
   removeUser: (nickname: string) => void
@@ -46,9 +50,23 @@ export const useChatStore = create<ChatState>((set) => ({
   },
 
   addMessage: (message) => {
-    // Agrega mensajes nuevos sin superar el limite local.
+    // Agrega mensajes nuevos o actualiza uno existente sin duplicarlo.
     set((state) => ({
-      messages: keepLastMessages([...state.messages, message]),
+      messages: keepLastMessages(
+        state.messages.some((item) => item.id === message.id)
+          ? state.messages.map((item) =>
+              item.id === message.id ? { ...item, ...message } : item,
+            )
+          : [...state.messages, message],
+      ),
+    }))
+  },
+
+  updateMessageReactions: (messageId, reactions) => {
+    set((state) => ({
+      messages: state.messages.map((message) =>
+        message.id === messageId ? { ...message, reactions } : message,
+      ),
     }))
   },
 

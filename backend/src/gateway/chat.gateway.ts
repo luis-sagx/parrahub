@@ -11,7 +11,6 @@ import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { v4 as uuidv4 } from 'uuid';
 import { RedisService } from '../redis/redis.service';
 import { RoomsService } from '../rooms/rooms.service';
 import { Message } from '../mongoose/message.schema';
@@ -24,6 +23,11 @@ interface JoinRoomPayload {
 
 interface SendMessagePayload {
   content: string;
+}
+
+interface ReactToMessagePayload {
+  messageId: string;
+  emoji: string;
 }
 
 interface ClientData {
@@ -46,6 +50,15 @@ interface JoinSuccessPayload {
 interface LeaveRoomAck {
   ok: boolean;
 }
+
+const ALLOWED_MESSAGE_REACTIONS = new Set([
+  '👍',
+  '❤️',
+  '😂',
+  '😮',
+  '😢',
+  '🙏',
+]);
 
 @WebSocketGateway({
   cors: { origin: '*', credentials: true },
@@ -85,6 +98,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.logger.log(
       `Cliente conectado: ${client.id} desde ${client.handshake.address} con deviceId ${deviceId}`,
     );
+  }
+
+  normalizeStoredMessage(message: Record<string, unknown>) {
+    const fallbackId = String(message._id ?? message.id ?? '');
+    return {
+      ...message,
+      id: fallbackId,
+      reactions: Array.isArray(message.reactions) ? message.reactions : [],
+    };
   }
 
   private clearInactivityTimer(socketId: string) {
@@ -222,7 +244,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         roomId,
         nickname,
         room,
-        history: history.reverse(),
+        history: history.reverse().map((message) =>
+          this.normalizeStoredMessage(
+            message as unknown as Record<string, unknown>,
+          ),
+        ),
         users,
         reconnected: true,
       } satisfies JoinSuccessPayload);
@@ -292,7 +318,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       roomId,
       nickname,
       room,
-      history: history.reverse(),
+      history: history.reverse().map((message) =>
+        this.normalizeStoredMessage(
+          message as unknown as Record<string, unknown>,
+        ),
+      ),
       users,
     } satisfies JoinSuccessPayload);
     this.server.to(roomId).emit('user-joined', { nickname, users });
@@ -301,7 +331,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('send-message')
-  handleSendMessage(
+  async handleSendMessage(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: SendMessagePayload,
   ) {
@@ -335,23 +365,100 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     const message = {
-      id: uuidv4(),
       roomId,
       nickname,
       content,
       type: 'text' as const,
+      reactions: [],
       timestamp: new Date(),
     };
 
-    // Guardar en MongoDB (async, no bloquea el broadcast)
-    this.messageModel
-      .create(message)
-      .catch((err: unknown) =>
-        this.logger.error('Error guardando mensaje en MongoDB:', err),
+    try {
+      const storedMessage = await this.messageModel.create(message);
+      this.server.to(roomId).emit(
+        'new-message',
+        this.normalizeStoredMessage(
+          storedMessage.toObject() as unknown as Record<string, unknown>,
+        ),
       );
+    } catch (err: unknown) {
+      this.logger.error('Error guardando mensaje en MongoDB:', err);
+      client.emit('error', {
+        code: 'MESSAGE_SAVE_FAILED',
+        message: 'No se pudo guardar el mensaje',
+      });
+    }
+  }
 
-    // Broadcast inmediato a toda la sala
-    this.server.to(roomId).emit('new-message', message);
+  @SubscribeMessage('react-message')
+  async handleReactMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: ReactToMessagePayload,
+  ) {
+    const data: ClientData = client.data as ClientData;
+    const roomId = data.roomId ?? '';
+    const nickname = data.nickname ?? '';
+    const deviceId = data.deviceId ?? '';
+    const messageId = payload.messageId?.trim();
+    const emoji = payload.emoji?.trim();
+
+    if (!roomId || !nickname) {
+      client.emit('error', {
+        code: 'NOT_IN_ROOM',
+        message: 'Debes unirte a una sala primero',
+      });
+      return;
+    }
+
+    if (!messageId || !emoji || !ALLOWED_MESSAGE_REACTIONS.has(emoji)) {
+      client.emit('error', {
+        code: 'INVALID_REACTION',
+        message: 'La reaccion no es valida',
+      });
+      return;
+    }
+
+    if (deviceId) {
+      this.clearInactivityTimer(client.id);
+      this.startInactivityTimer(client, deviceId);
+    }
+
+    const message = await this.messageModel.findOne({
+      roomId,
+      _id: messageId,
+    });
+    if (!message) {
+      client.emit('error', {
+        code: 'MESSAGE_NOT_FOUND',
+        message: 'No se encontro el mensaje',
+      });
+      return;
+    }
+
+    const reactions = Array.isArray(message.reactions) ? message.reactions : [];
+    const reaction = reactions.find((item) => item.emoji === emoji);
+
+    if (reaction) {
+      reaction.users = reaction.users.includes(nickname)
+        ? reaction.users.filter((user) => user !== nickname)
+        : [...reaction.users, nickname];
+    } else {
+      reactions.push({ emoji, users: [nickname] });
+    }
+
+    message.reactions = reactions
+      .filter((item) => item.users.length > 0)
+      .map((item) => ({
+        emoji: item.emoji,
+        users: [...new Set(item.users)],
+      }));
+
+    await message.save();
+
+    this.server.to(roomId).emit('message-reactions-updated', {
+      messageId: String(message._id),
+      reactions: message.reactions,
+    });
   }
 
   @SubscribeMessage('leave-room')

@@ -1,8 +1,12 @@
-import { useEffect, useRef } from 'react'
-import { FileText, MessageSquareText } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { FileText, MessageSquarePlus, MessageSquareText } from 'lucide-react'
 import { getUserColor } from '@/lib/userColors'
+import { cn } from '@/lib/utils'
+import { socket } from '@/lib/socket'
 import { useChatStore } from '@/store/chatStore'
 import type { Message } from '@/types'
+
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'] as const
 
 const formatTime = (timestamp: Message['timestamp']) =>
   // El timestamp puede venir como string, numero o Date desde diferentes respuestas.
@@ -18,6 +22,9 @@ const isImageMessage = (message: Message) =>
 export default function MessageList() {
   const { messages, nickname } = useChatStore()
   const listRef = useRef<HTMLDivElement | null>(null)
+  const [activeReactionPicker, setActiveReactionPicker] = useState<string | null>(
+    null,
+  )
 
   useEffect(() => {
     // Baja automaticamente dentro del panel de mensajes, sin mover toda la pagina.
@@ -60,6 +67,8 @@ export default function MessageList() {
         {messages.map((message) => {
           const isOwn = message.nickname === nickname
           const userColor = getUserColor(message.nickname)
+          const reactions = message.reactions ?? []
+          const showsImagePreview = isImageMessage(message) && Boolean(message.fileUrl)
 
           return (
             // Alinea a la derecha los mensajes del usuario actual.
@@ -67,51 +76,126 @@ export default function MessageList() {
               key={message.id}
               className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
             >
-              <div
-                className={`max-w-[min(82%,680px)] rounded-lg border px-3 py-2 ${
+              <div className="group flex max-w-[min(82%,680px)] flex-col items-start">
+                <div
+                  className={`rounded-lg border px-3 py-2 ${
                   isOwn
                     ? 'border-[#5e6ad2]/30 bg-[#5e6ad2]/20'
                     : 'border-white/[0.08] bg-white/[0.035]'
                 }`}
-              >
-                <div className="mb-1 flex items-center gap-2 text-xs text-[#8a8f98]">
-                  <span className="font-medium" style={{ color: userColor }}>
-                    {message.nickname}
-                  </span>
-                  <span>{formatTime(message.timestamp)}</span>
+                >
+                  <div className="mb-1 flex items-center gap-2 text-xs text-[#8a8f98]">
+                    <span className="font-medium" style={{ color: userColor }}>
+                      {message.nickname}
+                    </span>
+                    <span>{formatTime(message.timestamp)}</span>
+                  </div>
+
+                  {message.type === 'file' ? (
+                    // Los mensajes de archivo pueden tener previsualizacion y link de descarga.
+                    <div className="space-y-2">
+                      {showsImagePreview && (
+                        <a
+                          href={message.fileUrl}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          <img
+                            alt={message.filename ?? 'Imagen adjunta'}
+                            className="max-h-56 rounded-md border border-white/[0.08] object-cover"
+                            src={message.fileUrl}
+                          />
+                        </a>
+                      )}
+
+                      {!showsImagePreview && (
+                        <a
+                          className="inline-flex items-center gap-2 text-sm text-[#828fff] underline-offset-4 hover:underline"
+                          href={message.fileUrl}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          <FileText className="h-4 w-4" />
+                          {message.filename ?? 'Archivo adjunto'}
+                        </a>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[#f7f8f8]">
+                      {message.content}
+                    </p>
+                  )}
                 </div>
 
-                {message.type === 'file' ? (
-                  // Los mensajes de archivo pueden tener previsualizacion y link de descarga.
-                  <div className="space-y-2">
-                    {isImageMessage(message) && message.fileUrl && (
-                      <a
-                        href={message.fileUrl}
-                        rel="noreferrer"
-                        target="_blank"
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  {reactions.map((reaction) => {
+                    const reactedByCurrentUser = reaction.users.includes(nickname)
+
+                    return (
+                      <button
+                        key={`${message.id}-${reaction.emoji}`}
+                        className={cn(
+                          'inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs transition-colors',
+                          reactedByCurrentUser
+                            ? 'border-[#7170ff]/50 bg-[#7170ff]/20 text-white'
+                            : 'border-white/[0.08] bg-white/[0.03] text-[#d5d7dc] hover:bg-white/[0.06]',
+                        )}
+                        onClick={() =>
+                          socket.emit('react-message', {
+                            messageId: message.id,
+                            emoji: reaction.emoji,
+                          })
+                        }
+                        type="button"
                       >
-                        <img
-                          alt={message.filename ?? 'Imagen adjunta'}
-                          className="max-h-56 rounded-md border border-white/[0.08] object-cover"
-                          src={message.fileUrl}
-                        />
-                      </a>
-                    )}
-                    <a
-                      className="inline-flex items-center gap-2 text-sm text-[#828fff] underline-offset-4 hover:underline"
-                      href={message.fileUrl}
-                      rel="noreferrer"
-                      target="_blank"
+                        <span>{reaction.emoji}</span>
+                        <span>{reaction.users.length}</span>
+                      </button>
+                    )
+                  })}
+
+                  <div className="relative">
+                    <button
+                      aria-expanded={activeReactionPicker === message.id}
+                      aria-label="Agregar reaccion"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] text-[#a8adb7] transition hover:bg-white/[0.07] hover:text-white md:opacity-0 md:group-hover:opacity-100"
+                      onClick={() =>
+                        setActiveReactionPicker((current) =>
+                          current === message.id ? null : message.id,
+                        )
+                      }
+                      type="button"
                     >
-                      <FileText className="h-4 w-4" />
-                      {message.filename ?? 'Archivo adjunto'}
-                    </a>
+                      <MessageSquarePlus className="h-3.5 w-3.5" />
+                    </button>
+
+                    {activeReactionPicker === message.id && (
+                      <div
+                        className={cn(
+                          'absolute z-10 mt-2 flex gap-1 rounded-full border border-white/[0.08] bg-[#17181b] p-1 shadow-lg',
+                          isOwn ? 'right-0' : 'left-0',
+                        )}
+                      >
+                        {QUICK_REACTIONS.map((emoji) => (
+                          <button
+                            key={`${message.id}-${emoji}-picker`}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-base transition hover:bg-white/[0.08]"
+                            onClick={() => {
+                              socket.emit('react-message', {
+                                messageId: message.id,
+                                emoji,
+                              })
+                              setActiveReactionPicker(null)
+                            }}
+                            type="button"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[#f7f8f8]">
-                    {message.content}
-                  </p>
-                )}
+                </div>
               </div>
             </article>
           )

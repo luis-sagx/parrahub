@@ -1,7 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
-import { v4 as uuidv4 } from 'uuid';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { FILE_PROCESSING_QUEUE } from './files.constants';
@@ -45,22 +44,28 @@ export class FileProcessor extends WorkerHost {
     );
 
     const message = {
-      id: uuidv4(),
       roomId,
       nickname,
       content: originalname,
       type: 'file' as const,
       fileUrl: url,
       filename: originalname,
+      mimeType: mimetype,
+      reactions: [],
       timestamp: new Date(),
     };
 
-    await this.messageModel.create(message);
+    const storedMessage = await this.messageModel.create(message);
     this.chatGateway.server?.to(roomId).emit('new-file', {
       ...metadata,
       nickname,
     });
-    this.chatGateway.server?.to(roomId).emit('new-message', message);
+    this.chatGateway.server?.to(roomId).emit(
+      'new-message',
+      this.chatGateway.normalizeStoredMessage(
+        storedMessage.toObject() as unknown as Record<string, unknown>,
+      ),
+    );
     await job.updateProgress(100);
 
     this.logger.log(`Archivo procesado para sala ${roomId}: ${originalname}`);

@@ -8,7 +8,7 @@ import {
 } from '@/lib/chatSession'
 import { socket } from '@/lib/socket'
 import { useChatStore } from '@/store/chatStore'
-import type { Message, Room } from '@/types'
+import type { Message, MessageReaction, Room } from '@/types'
 
 interface JoinSuccessPayload {
   roomId: string
@@ -32,7 +32,15 @@ interface SocketErrorPayload {
     | 'NOT_IN_ROOM'
     | 'MESSAGE_TOO_LONG'
     | 'MISSING_DEVICE_ID'
+    | 'INVALID_REACTION'
+    | 'MESSAGE_NOT_FOUND'
+    | 'MESSAGE_SAVE_FAILED'
   message?: string
+}
+
+interface MessageReactionsUpdatedPayload {
+  messageId: string
+  reactions: MessageReaction[]
 }
 
 interface NewFilePayload {
@@ -54,6 +62,9 @@ const socketErrorMessages: Record<SocketErrorPayload['code'], string> = {
   NOT_IN_ROOM: 'Debes unirte a una sala primero',
   MESSAGE_TOO_LONG: 'El mensaje no puede tener mas de 1000 caracteres',
   MISSING_DEVICE_ID: 'No se pudo identificar este dispositivo',
+  INVALID_REACTION: 'La reaccion no es valida',
+  MESSAGE_NOT_FOUND: 'No se encontro el mensaje',
+  MESSAGE_SAVE_FAILED: 'No se pudo guardar el mensaje',
 }
 
 // Evita registrar los mismos listeners muchas veces cuando varios componentes usan el hook.
@@ -82,6 +93,7 @@ export function useSocket() {
     setMessages,
     setRoom,
     setUsers,
+    updateMessageReactions,
   } = useChatStore()
 
   useEffect(() => {
@@ -126,6 +138,12 @@ export function useSocket() {
     const handleNewMessage = (message: Message) => {
       // Todos los mensajes, incluidos archivos procesados, llegan por este evento.
       addMessage(message)
+    }
+
+    const handleMessageReactionsUpdated = (
+      payload: MessageReactionsUpdatedPayload,
+    ) => {
+      updateMessageReactions(payload.messageId, payload.reactions)
     }
 
     const handleUserJoined = ({ users }: UsersUpdatedPayload) => {
@@ -175,6 +193,7 @@ export function useSocket() {
     socket.on('disconnect', handleDisconnect)
     socket.on('join-success', handleJoinSuccess)
     socket.on('new-message', handleNewMessage)
+    socket.on('message-reactions-updated', handleMessageReactionsUpdated)
     socket.on('user-joined', handleUserJoined)
     socket.on('user-left', handleUserLeft)
     socket.on('new-file', handleNewFile)
@@ -187,6 +206,7 @@ export function useSocket() {
       socket.off('disconnect', handleDisconnect)
       socket.off('join-success', handleJoinSuccess)
       socket.off('new-message', handleNewMessage)
+      socket.off('message-reactions-updated', handleMessageReactionsUpdated)
       socket.off('user-joined', handleUserJoined)
       socket.off('user-left', handleUserLeft)
       socket.off('new-file', handleNewFile)
@@ -204,6 +224,7 @@ export function useSocket() {
     setMessages,
     setRoom,
     setUsers,
+    updateMessageReactions,
   ])
 
   const connect = useCallback(

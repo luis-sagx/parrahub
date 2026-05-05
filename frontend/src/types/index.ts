@@ -1,5 +1,10 @@
 export type RoomType = 'TEXT' | 'MULTIMEDIA'
 
+export interface MessageReaction {
+  emoji: string
+  users: string[]
+}
+
 // Modelo de sala tal como lo consume el frontend desde el backend.
 export interface Room {
   id: string
@@ -22,6 +27,7 @@ export interface Message {
   fileUrl?: string
   filename?: string
   mimeType?: string
+  reactions?: MessageReaction[]
   timestamp: string | number | Date
 }
 

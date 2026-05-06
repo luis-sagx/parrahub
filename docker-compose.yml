@@ -87,7 +87,7 @@ services:
       REDIS_PORT: ${REDIS_PORT}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT}
       MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT}
-      MINIO_PORT: ${MINIO_PORT}
+      MINIO_PORT: ${MINIO_INTERNAL_PORT:-9000}
       MINIO_USE_SSL: ${MINIO_USE_SSL}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
@@ -133,7 +133,7 @@ services:
       FRONTEND_UPSTREAM: frontend:80
       BACKEND_UPSTREAM: backend:3000
     ports:
-      - "80:80"
+      - "${HTTP_PORT:-8085}:80"
     volumes:
       - letsencrypt:/etc/letsencrypt
       - certbot-webroot:/var/www/certbot

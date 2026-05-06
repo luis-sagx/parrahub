@@ -18,6 +18,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - chat-net
 
   mongodb:
     image: mongo:7
@@ -36,6 +38,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - chat-net
 
   redis:
     image: redis:7-alpine
@@ -51,6 +55,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - chat-net
 
   minio:
     image: minio/minio
@@ -70,6 +76,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - chat-net
 
   backend:
     build:
@@ -93,6 +101,7 @@ services:
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: chat-files
       PORT: 3000
+      FRONTEND_URL: http://localhost:8085
     ports:
       - '3001:3000'
     volumes:
@@ -107,6 +116,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    networks:
+      - chat-net
 
   frontend:
     build:
@@ -115,6 +126,9 @@ services:
     container_name: chat_frontend
     restart: unless-stopped
     command: pnpm run dev --host 0.0.0.0
+    environment:
+      VITE_API_URL: http://localhost:8085/api
+      VITE_SOCKET_URL: http://localhost:8085
     ports:
       - '5174:5173'
     volumes:
@@ -122,6 +136,8 @@ services:
       - ./frontend/public:/app/public
     depends_on:
       - backend
+    networks:
+      - chat-net
 
   nginx:
     build:
@@ -137,6 +153,8 @@ services:
     depends_on:
       - frontend
       - backend
+    networks:
+      - chat-net
 
   adminer:
     image: adminer
@@ -146,6 +164,8 @@ services:
       - '8082:8080'
     depends_on:
       - postgres
+    networks:
+      - chat-net
 
   mongo-express:
     image: mongo-express
@@ -160,6 +180,12 @@ services:
       ME_CONFIG_BASICAUTH: false
     depends_on:
       - mongodb
+    networks:
+      - chat-net
+
+networks:
+  chat-net:
+    driver: bridge
 
 volumes:
   postgres_data:

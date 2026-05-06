@@ -43,6 +43,11 @@ interface MessageReactionsUpdatedPayload {
   reactions: MessageReaction[]
 }
 
+interface MessageSeenUpdatedPayload {
+  messageId: string
+  seenBy: string[]
+}
+
 interface NewFilePayload {
   id: string
   roomId: string
@@ -94,6 +99,7 @@ export function useSocket() {
     setRoom,
     setUsers,
     updateMessageReactions,
+    updateMessageSeenBy,
   } = useChatStore()
 
   useEffect(() => {
@@ -146,6 +152,10 @@ export function useSocket() {
       updateMessageReactions(payload.messageId, payload.reactions)
     }
 
+    const handleMessageSeenUpdated = (payload: MessageSeenUpdatedPayload) => {
+      updateMessageSeenBy(payload.messageId, payload.seenBy)
+    }
+
     const handleUserJoined = ({ users }: UsersUpdatedPayload) => {
       // El backend manda la lista completa para mantener presencia consistente.
       setUsers(users)
@@ -194,6 +204,7 @@ export function useSocket() {
     socket.on('join-success', handleJoinSuccess)
     socket.on('new-message', handleNewMessage)
     socket.on('message-reactions-updated', handleMessageReactionsUpdated)
+    socket.on('message-seen-updated', handleMessageSeenUpdated)
     socket.on('user-joined', handleUserJoined)
     socket.on('user-left', handleUserLeft)
     socket.on('new-file', handleNewFile)
@@ -207,6 +218,7 @@ export function useSocket() {
       socket.off('join-success', handleJoinSuccess)
       socket.off('new-message', handleNewMessage)
       socket.off('message-reactions-updated', handleMessageReactionsUpdated)
+      socket.off('message-seen-updated', handleMessageSeenUpdated)
       socket.off('user-joined', handleUserJoined)
       socket.off('user-left', handleUserLeft)
       socket.off('new-file', handleNewFile)
@@ -225,6 +237,7 @@ export function useSocket() {
     setRoom,
     setUsers,
     updateMessageReactions,
+    updateMessageSeenBy,
   ])
 
   const connect = useCallback(

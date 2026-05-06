@@ -28,6 +28,8 @@ export interface Message {
   filename?: string
   mimeType?: string
   reactions?: MessageReaction[]
+  participants?: string[]
+  seenBy?: string[]
   timestamp: string | number | Date
 }
 

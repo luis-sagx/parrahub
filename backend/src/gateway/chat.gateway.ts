@@ -31,6 +31,10 @@ interface ReactToMessagePayload {
   emoji: string;
 }
 
+interface MarkMessagesSeenPayload {
+  messageIds: string[];
+}
+
 interface ClientData {
   roomId?: string;
   nickname?: string;
@@ -46,6 +50,11 @@ interface JoinSuccessPayload {
   history?: unknown[];
   users?: string[];
   reconnected?: boolean;
+}
+
+interface MessageSeenUpdatedPayload {
+  messageId: string;
+  seenBy: string[];
 }
 
 interface LeaveRoomAck {
@@ -151,6 +160,10 @@ export class ChatGateway
       ...message,
       id: fallbackId,
       reactions: Array.isArray(message.reactions) ? message.reactions : [],
+      participants: Array.isArray(message.participants)
+        ? message.participants
+        : [],
+      seenBy: Array.isArray(message.seenBy) ? message.seenBy : [],
     };
   }
 
@@ -407,6 +420,7 @@ export class ChatGateway
     }
 
     const content = payload.content.trim();
+    const participants = await this.redisService.getRoomUsers(roomId);
 
     if (deviceId) {
       this.clearInactivityTimer(client.id);
@@ -419,6 +433,8 @@ export class ChatGateway
       content,
       type: 'text' as const,
       reactions: [],
+      participants,
+      seenBy: [nickname],
       timestamp: new Date(),
     };
 
@@ -510,6 +526,57 @@ export class ChatGateway
       messageId: String(message._id),
       reactions: message.reactions,
     });
+  }
+
+  @SubscribeMessage('mark-messages-seen')
+  async handleMarkMessagesSeen(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: MarkMessagesSeenPayload,
+  ) {
+    const data: ClientData = client.data as ClientData;
+    const roomId = data.roomId ?? '';
+    const nickname = data.nickname ?? '';
+    const deviceId = data.deviceId ?? '';
+    const messageIds = Array.isArray(payload?.messageIds)
+      ? [...new Set(payload.messageIds.map((id) => String(id).trim()).filter(Boolean))]
+      : [];
+
+    if (!roomId || !nickname) {
+      client.emit('error', {
+        code: 'NOT_IN_ROOM',
+        message: 'Debes unirte a una sala primero',
+      });
+      return;
+    }
+
+    if (messageIds.length === 0) return;
+
+    if (deviceId) {
+      this.clearInactivityTimer(client.id);
+      this.startInactivityTimer(client, deviceId);
+    }
+
+    const messages = await this.messageModel
+      .find({
+        roomId,
+        _id: { $in: messageIds },
+      })
+      .exec();
+
+    for (const message of messages) {
+      const currentSeenBy = Array.isArray(message.seenBy) ? message.seenBy : [];
+      const nextSeenBy = [...new Set([...currentSeenBy, nickname])];
+
+      if (nextSeenBy.length === currentSeenBy.length) continue;
+
+      message.seenBy = nextSeenBy;
+      await message.save();
+
+      this.server.to(roomId).emit('message-seen-updated', {
+        messageId: String(message._id),
+        seenBy: nextSeenBy,
+      } satisfies MessageSeenUpdatedPayload);
+    }
   }
 
   @SubscribeMessage('leave-room')

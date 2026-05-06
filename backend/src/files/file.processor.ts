@@ -44,6 +44,7 @@ export class FileProcessor extends WorkerHost {
       mimetype,
       roomId,
     );
+    const participants = await this.redisService.getRoomUsers(roomId);
 
     const message = {
       roomId,
@@ -54,6 +55,8 @@ export class FileProcessor extends WorkerHost {
       filename: originalname,
       mimeType: mimetype,
       reactions: [],
+      participants,
+      seenBy: [nickname],
       timestamp: new Date(),
     };
 

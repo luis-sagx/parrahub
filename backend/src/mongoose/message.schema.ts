@@ -14,6 +14,8 @@ export interface Message extends Document {
   filename?: string;
   mimeType?: string;
   reactions: MessageReaction[];
+  participants: string[];
+  seenBy: string[];
   timestamp: Date;
 }
 
@@ -34,6 +36,8 @@ export const MessageSchema = new Schema<Message>({
   filename: { type: String },
   mimeType: { type: String },
   reactions: { type: [MessageReactionSchema], default: [] },
+  participants: { type: [String], default: [] },
+  seenBy: { type: [String], default: [] },
   timestamp: { type: Date, default: Date.now },
 });
 

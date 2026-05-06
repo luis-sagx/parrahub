@@ -111,20 +111,20 @@ export class ChatGateway
         }
       });
 
-      subClient.subscribe('socket:events', (err: Error | null, count: number) => {
-        if (err) {
-          this.logger.error('Failed to subscribe to socket:events', err);
-        } else {
-          this.logger.log(
-            `Worker event subscription initialized (listening on ${count} channel)`,
-          );
-        }
-      });
-    } catch (err) {
-      this.logger.error(
-        'Failed to initialize worker event subscription',
-        err,
+      subClient.subscribe(
+        'socket:events',
+        (err: Error | null, count: number) => {
+          if (err) {
+            this.logger.error('Failed to subscribe to socket:events', err);
+          } else {
+            this.logger.log(
+              `Worker event subscription initialized (listening on ${count} channel)`,
+            );
+          }
+        },
       );
+    } catch (err) {
+      this.logger.error('Failed to initialize worker event subscription', err);
     }
   }
 

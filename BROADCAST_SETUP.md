@@ -7,6 +7,7 @@ Configuración de **broadcasting eficiente** usando **Redis PUB/SUB** + **BullMQ
 ### Cambios Realizados
 
 #### 1. **ChatGateway** (`backend/src/gateway/chat.gateway.ts`)
+
 - Implementó `OnGatewayInit` para inicializar suscripción a eventos desde workers
 - Subscripción a canal Redis `socket:events` que recibe eventos publicados por workers
 - Re-emite eventos a clientes Socket.IO correspondientes por sala
@@ -15,34 +16,38 @@ Configuración de **broadcasting eficiente** usando **Redis PUB/SUB** + **BullMQ
 ```typescript
 // Worker publishes → Redis channel → Gateway re-emits → Socket.IO clients
 subClient.on('message', (channel: string, raw: string) => {
-  const msg = JSON.parse(raw);
-  this.server.to(msg.roomId).emit(msg.type, msg.payload);
-});
+  const msg = JSON.parse(raw)
+  this.server.to(msg.roomId).emit(msg.type, msg.payload)
+})
 ```
 
 #### 2. **FileProcessor** (`backend/src/files/file.processor.ts`)
+
 - Inyectó `RedisService` para publicar eventos
 - Workers publican eventos `new-file` y `new-message` a Redis
 - Garantiza que eventos lleguen a todos los clientes aunque el worker sea proceso separado
 
 ```typescript
 // When file upload job completes:
-await this.redisService.getClient().publish('socket:events', JSON.stringify({
-  type: 'new-file',
-  roomId,
-  payload: { ...metadata, nickname }
-}));
+await this.redisService.getClient().publish(
+  'socket:events',
+  JSON.stringify({
+    type: 'new-file',
+    roomId,
+    payload: { ...metadata, nickname },
+  }),
+)
 ```
 
 ### Ventajas de Esta Arquitectura
 
-| Aspecto | Beneficio |
-|--------|----------|
-| **Escalabilidad** | Múltiples instancias Node pueden compartir eventos vía Redis |
-| **Hilos Concurrentes** | BullMQ workers procesan archivos en background sin bloquear |
-| **Consistencia** | Redis PUB/SUB garantiza entrega de eventos con orden |
-| **Desacoplamiento** | Workers no necesitan conocer instancia de Socket.IO |
-| **Resiliencia** | Si un worker falla, evento sigue siendo publicado |
+| Aspecto                | Beneficio                                                    |
+| ---------------------- | ------------------------------------------------------------ |
+| **Escalabilidad**      | Múltiples instancias Node pueden compartir eventos vía Redis |
+| **Hilos Concurrentes** | BullMQ workers procesan archivos en background sin bloquear  |
+| **Consistencia**       | Redis PUB/SUB garantiza entrega de eventos con orden         |
+| **Desacoplamiento**    | Workers no necesitan conocer instancia de Socket.IO          |
+| **Resiliencia**        | Si un worker falla, evento sigue siendo publicado            |
 
 ### Flujo de Datos
 
@@ -65,6 +70,7 @@ Clientes reciben 'new-file' en tiempo real
 ### Cómo Probar
 
 1. **Levantá los servicios:**
+
 ```bash
 docker-compose -f docker-compose.dev.yml up -d
 ```
@@ -79,6 +85,7 @@ docker-compose -f docker-compose.dev.yml up -d
    - **Reacciona con emoji:** El evento `message-reactions-updated` se broadcast a todos
 
 5. **Verifica en logs del backend:**
+
 ```bash
 docker logs chat_backend -f | grep -i "re-emitted\|worker\|socket:events"
 ```

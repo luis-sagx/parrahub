@@ -165,11 +165,31 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm run db:generate
           pnpm run build
-      - name: Start backend
+      - name: Start backend and wait for services
         run: |
+          # Iniciar backend en background
           cd backend
           pnpm run start:prod &
-          sleep 10
+          
+          echo "Waiting for MinIO to be ready..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:9000/minio/health/live > /dev/null 2>&1; then
+              echo "MinIO is ready"
+              break
+            fi
+            echo "Waiting for MinIO... ($i/30)"
+            sleep 2
+          done
+          
+          echo "Waiting for backend to be ready..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:3000/api/auth/login > /dev/null 2>&1; then
+              echo "Backend is ready"
+              break
+            fi
+            echo "Waiting for backend... ($i/30)"
+            sleep 2
+          done
         env:
           DATABASE_URL: postgresql://chatuser:chatpassword@localhost:5432/chatdb
           MONGODB_URI: mongodb://chatuser:chatpassword@localhost:27017/chatdb?authSource=admin
@@ -177,14 +197,12 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           JWT_SECRET: test-secret
-          MINIO_ENDPOINT: minio
+          MINIO_ENDPOINT: localhost
           MINIO_PORT: 9000
           MINIO_ACCESS_KEY: minioadmin
           MINIO_SECRET_KEY: minioadmin
           MINIO_BUCKET: chat-files
           PORT: 3000
-      - name: Wait for services
-        run: sleep 15
       - name: Run k6 load test
         uses: grafana/k6-action@v0.3.0
         with:

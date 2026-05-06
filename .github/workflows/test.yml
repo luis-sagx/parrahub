@@ -42,7 +42,7 @@ jobs:
           node-version: 20
           cache: pnpm
           cache-dependency-path: backend/pnpm-lock.yaml
-      - run: corepack enable
+      - run: npm install -g pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run db:generate
       - run: pnpm run test:cov
@@ -74,7 +74,7 @@ jobs:
           node-version: 20
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
-      - run: corepack enable
+      - run: npm install -g pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
       - run: pnpm run test:coverage
@@ -131,7 +131,7 @@ jobs:
       - name: Setup backend
         run: |
           cd backend
-          corepack enable
+          npm install -g pnpm
           pnpm install --frozen-lockfile
           pnpm run db:generate
       - name: Start backend

@@ -6,6 +6,7 @@ import {
   OnGatewayDisconnect,
   ConnectedSocket,
   MessageBody,
+  OnGatewayInit,
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
@@ -51,21 +52,16 @@ interface LeaveRoomAck {
   ok: boolean;
 }
 
-const ALLOWED_MESSAGE_REACTIONS = new Set([
-  '👍',
-  '❤️',
-  '😂',
-  '😮',
-  '😢',
-  '🙏',
-]);
+const ALLOWED_MESSAGE_REACTIONS = new Set(['👍', '❤️', '😂', '😮', '😢', '🙏']);
 
 @WebSocketGateway({
   cors: { origin: '*', credentials: true },
   namespace: '/',
   transports: ['websocket', 'polling'],
 })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
+{
   @WebSocketServer()
   server: Server;
 
@@ -82,6 +78,55 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly roomsService: RoomsService,
     @InjectModel('Message') private readonly messageModel: Model<Message>,
   ) {}
+
+  async afterInit(server: Server) {
+    this.server = server;
+
+    try {
+      // Create a Redis client for worker event subscriptions
+      const redis = require('ioredis');
+      const subClient = new redis({
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379', 10),
+        retryStrategy: (times: number) => Math.min(times * 100, 3000),
+      });
+
+      // Subscribe to worker-published socket events and re-emit to clients
+      subClient.on('message', (channel: string, raw: string) => {
+        if (channel !== 'socket:events') return;
+        try {
+          const msg = JSON.parse(raw) as {
+            type: string;
+            roomId?: string;
+            payload?: unknown;
+          };
+          if (msg.roomId && msg.type) {
+            this.server.to(msg.roomId).emit(msg.type, msg.payload);
+            this.logger.debug(
+              `Re-emitted ${msg.type} to room ${msg.roomId} (from worker)`,
+            );
+          }
+        } catch (err) {
+          this.logger.error('Error parsing socket event from Redis', err);
+        }
+      });
+
+      subClient.subscribe('socket:events', (err: Error | null, count: number) => {
+        if (err) {
+          this.logger.error('Failed to subscribe to socket:events', err);
+        } else {
+          this.logger.log(
+            `Worker event subscription initialized (listening on ${count} channel)`,
+          );
+        }
+      });
+    } catch (err) {
+      this.logger.error(
+        'Failed to initialize worker event subscription',
+        err,
+      );
+    }
+  }
 
   handleConnection(client: Socket) {
     const deviceId = String(client.handshake.auth?.deviceId ?? '');
@@ -244,11 +289,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         roomId,
         nickname,
         room,
-        history: history.reverse().map((message) =>
-          this.normalizeStoredMessage(
-            message as unknown as Record<string, unknown>,
+        history: history
+          .reverse()
+          .map((message) =>
+            this.normalizeStoredMessage(
+              message as unknown as Record<string, unknown>,
+            ),
           ),
-        ),
         users,
         reconnected: true,
       } satisfies JoinSuccessPayload);
@@ -318,11 +365,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       roomId,
       nickname,
       room,
-      history: history.reverse().map((message) =>
-        this.normalizeStoredMessage(
-          message as unknown as Record<string, unknown>,
+      history: history
+        .reverse()
+        .map((message) =>
+          this.normalizeStoredMessage(
+            message as unknown as Record<string, unknown>,
+          ),
         ),
-      ),
       users,
     } satisfies JoinSuccessPayload);
     this.server.to(roomId).emit('user-joined', { nickname, users });
@@ -375,12 +424,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       const storedMessage = await this.messageModel.create(message);
-      this.server.to(roomId).emit(
-        'new-message',
-        this.normalizeStoredMessage(
-          storedMessage.toObject() as unknown as Record<string, unknown>,
-        ),
-      );
+      this.server
+        .to(roomId)
+        .emit(
+          'new-message',
+          this.normalizeStoredMessage(
+            storedMessage.toObject() as unknown as Record<string, unknown>,
+          ),
+        );
     } catch (err: unknown) {
       this.logger.error('Error guardando mensaje en MongoDB:', err);
       client.emit('error', {

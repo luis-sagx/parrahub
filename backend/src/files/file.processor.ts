@@ -7,6 +7,7 @@ import { FILE_PROCESSING_QUEUE } from './files.constants';
 import { FilesService, UploadJobData } from './files.service';
 import { MinioService } from '../minio/minio.service';
 import { ChatGateway } from '../gateway/chat.gateway';
+import { RedisService } from '../redis/redis.service';
 import { Message } from '../mongoose/message.schema';
 
 @Processor(FILE_PROCESSING_QUEUE)
@@ -17,6 +18,7 @@ export class FileProcessor extends WorkerHost {
     private readonly minioService: MinioService,
     private readonly filesService: FilesService,
     private readonly chatGateway: ChatGateway,
+    private readonly redisService: RedisService,
     @InjectModel('Message') private readonly messageModel: Model<Message>,
   ) {
     super();
@@ -56,15 +58,27 @@ export class FileProcessor extends WorkerHost {
     };
 
     const storedMessage = await this.messageModel.create(message);
-    this.chatGateway.server?.to(roomId).emit('new-file', {
-      ...metadata,
-      nickname,
-    });
-    this.chatGateway.server?.to(roomId).emit(
-      'new-message',
-      this.chatGateway.normalizeStoredMessage(
-        storedMessage.toObject() as unknown as Record<string, unknown>,
-      ),
+
+    // Publish socket events through Redis so the gateway (and other instances)
+    // will re-emit them to connected clients regardless of process.
+    await this.redisService.getClient().publish(
+      'socket:events',
+      JSON.stringify({
+        type: 'new-file',
+        roomId,
+        payload: { ...metadata, nickname },
+      }),
+    );
+
+    await this.redisService.getClient().publish(
+      'socket:events',
+      JSON.stringify({
+        type: 'new-message',
+        roomId,
+        payload: this.chatGateway.normalizeStoredMessage(
+          storedMessage.toObject() as unknown as Record<string, unknown>,
+        ),
+      }),
     );
     await job.updateProgress(100);
 

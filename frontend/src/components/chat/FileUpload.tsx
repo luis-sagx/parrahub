@@ -6,6 +6,7 @@ import {
   UploadCloud,
   X,
 } from 'lucide-react'
+import { v4 as uuidv4 } from 'uuid'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { useFileUpload } from '@/hooks/useFileUpload'
@@ -36,7 +37,7 @@ const buildPendingUpload = async (file: File): Promise<PendingUpload> => {
   }
 
   return {
-    id: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
+    id: `${file.name}-${file.size}-${file.lastModified}-${uuidv4()}`,
     file,
     previewUrl,
     textPreview,

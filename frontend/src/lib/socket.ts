@@ -1,11 +1,12 @@
 import { io } from 'socket.io-client'
+import { v4 as uuidv4 } from 'uuid'
 
 const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001'
 
 function getDeviceId(): string {
   let id = localStorage.getItem('chat_device_id')
   if (!id) {
-    id = crypto.randomUUID()
+    id = uuidv4()
     localStorage.setItem('chat_device_id', id)
   }
   return id

@@ -51,7 +51,7 @@ describe('socket singleton', () => {
 
   it('puede guardar y recuperar deviceId del localStorage', async () => {
     localStorage.setItem('chat_device_id', 'existing-device-id')
-    const { socket } = await import('./socket')
+    await import('./socket')
     expect(localStorage.getItem('chat_device_id')).toBe('existing-device-id')
   })
 })

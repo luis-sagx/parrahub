@@ -54,7 +54,10 @@ describe('API', () => {
 
   afterEach(() => {
     // Restaurar location
-    window.location = originalLocation
+    Object.defineProperty(window, 'location', {
+      value: originalLocation,
+      writable: true,
+    })
   })
 
   it('exporta una instancia de axios', async () => {

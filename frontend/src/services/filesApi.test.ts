@@ -47,7 +47,7 @@ describe('filesApi', () => {
       const onProgress = vi.fn()
 
       // Configurar el mock para que llame al callback de progreso
-      mockPost.mockImplementation((url, data, config) => {
+      mockPost.mockImplementation((_url, _data, config) => {
         if (config?.onUploadProgress) {
           config.onUploadProgress({ loaded: 50, total: 100 })
         }

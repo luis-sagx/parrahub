@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
@@ -94,5 +94,94 @@ describe('RoomsService', () => {
     await expect(service.delete('r1', 'mi-admin')).rejects.toThrow(
       ForbiddenException,
     );
+  });
+
+  it('findPublic llama a findAll', async () => {
+    mockPrisma.room.findMany.mockResolvedValue([]);
+    
+    await service.findPublic();
+    
+    expect(mockPrisma.room.findMany).toHaveBeenCalledWith({
+      where: { isActive: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  });
+
+  it('findOne lanza NotFoundException si la sala no existe', async () => {
+    mockPrisma.room.findUnique.mockResolvedValue(null);
+    
+    await expect(service.findOne('inexistente')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('findOne retorna sala sin PIN', async () => {
+    mockPrisma.room.findUnique.mockResolvedValue({
+      id: 'r1',
+      name: 'Sala 1',
+      type: 'TEXT',
+      adminId: 'admin-1',
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      maxFileSize: 10,
+      pin: 'hashed-pin',
+    });
+    
+    const result = await service.findOne('r1');
+    
+    expect(result).not.toHaveProperty('pin');
+    expect(result.id).toBe('r1');
+  });
+
+  it('delete lanza NotFoundException si la sala no existe', async () => {
+    mockPrisma.room.findUnique.mockResolvedValue(null);
+    
+    await expect(service.delete('inexistente', 'admin-1')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('delete exitosamente marca la sala como inactiva', async () => {
+    mockPrisma.room.findUnique.mockResolvedValue({
+      id: 'r1',
+      adminId: 'admin-1',
+    });
+    mockPrisma.room.update.mockResolvedValue({});
+    
+    await service.delete('r1', 'admin-1');
+    
+    expect(mockPrisma.room.update).toHaveBeenCalledWith({
+      where: { id: 'r1' },
+      data: { isActive: false },
+    });
+  });
+
+  it('validatePin retorna false si la sala no existe', async () => {
+    mockPrisma.room.findUnique.mockResolvedValue(null);
+    
+    const result = await service.validatePin('inexistente', '1234');
+    
+    expect(result).toBe(false);
+  });
+
+  it('validatePin retorna false si la sala no está activa', async () => {
+    mockPrisma.room.findUnique.mockResolvedValue({
+      pin: 'hashed',
+      isActive: false,
+    });
+    
+    const result = await service.validatePin('r1', '1234');
+    
+    expect(result).toBe(false);
+  });
+
+  it('getRoomWithPin retorna la sala con el PIN', async () => {
+    const mockRoom = { id: 'r1', pin: 'hashed-pin' };
+    mockPrisma.room.findUnique.mockResolvedValue(mockRoom);
+    
+    const result = await service.getRoomWithPin('r1');
+    
+    expect(result).toEqual(mockRoom);
   });
 });

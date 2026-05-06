@@ -7,8 +7,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "5433:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
@@ -27,8 +25,6 @@ services:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
       MONGO_INITDB_DATABASE: ${POSTGRES_DB}
-    ports:
-      - "27018:27017"
     volumes:
       - mongo-data:/data/db
     networks:
@@ -44,8 +40,6 @@ services:
     container_name: chat_redis
     restart: unless-stopped
     command: redis-server --appendonly yes
-    ports:
-      - "6380:6379"
     volumes:
       - redis-data:/data
     networks:
@@ -66,7 +60,6 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
       - "9002:9000"
-      - "9003:9001"
     volumes:
       - minio-data:/data
     networks:
@@ -80,10 +73,9 @@ services:
   backend:
     build:
       context: ./backend
-      target: dev
+      target: prod
     container_name: chat_backend
     restart: unless-stopped
-    command: pnpm run start:dev
     env_file:
       - path: .env
         required: false
@@ -105,10 +97,8 @@ services:
       ADMIN_USERNAME: ${ADMIN_USERNAME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       PORT: ${PORT}
-      NODE_ENV: ${NODE_ENV}
+      NODE_ENV: production
       FRONTEND_URL: ${FRONTEND_URL}
-    ports:
-      - "3001:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -120,16 +110,15 @@ services:
         condition: service_healthy
     networks:
       - chat-net
+
   frontend:
     build:
       context: ./frontend
       args:
-        VITE_API_URL: http://187.124.233.120:3001/api
-        VITE_SOCKET_URL: http://187.124.233.120:3001
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_SOCKET_URL: ${VITE_SOCKET_URL}
     container_name: chat_frontend
     restart: unless-stopped
-    ports:
-      - "5174:80"
     depends_on:
       - backend
     networks:
@@ -138,13 +127,13 @@ services:
   nginx:
     build: ./docker/nginx
     container_name: chat_nginx
-    restart: always
+    restart: unless-stopped
     environment:
       DOMAIN: ${DOMAIN:-localhost}
       FRONTEND_UPSTREAM: frontend:80
       BACKEND_UPSTREAM: backend:3000
     ports:
-      - "8085:80"
+      - "80:80"
     volumes:
       - letsencrypt:/etc/letsencrypt
       - certbot-webroot:/var/www/certbot

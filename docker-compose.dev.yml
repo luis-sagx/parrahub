@@ -129,6 +129,9 @@ services:
     environment:
       VITE_API_URL: http://localhost:8085/api
       VITE_SOCKET_URL: http://localhost:8085
+      VITE_HMR_HOST: localhost
+      VITE_HMR_PORT: 5174
+      VITE_HMR_PROTOCOL: ws
     ports:
       - '5174:5173'
     volumes:

@@ -16,4 +16,13 @@ export default defineConfig({
     react(),
     babel({ presets: [reactCompilerPreset()] }),
   ],
+  server: {
+    hmr: process.env.VITE_HMR_HOST
+      ? {
+          host: process.env.VITE_HMR_HOST,
+          port: parseInt(process.env.VITE_HMR_PORT || '443'),
+          protocol: process.env.VITE_HMR_PROTOCOL || 'wss',
+        }
+      : undefined,
+  },
 })

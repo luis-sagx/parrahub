@@ -10,9 +10,8 @@ export class EncryptionService implements OnModuleInit {
   private key: Buffer;
 
   onModuleInit() {
-    let keyHex = (process.env.MESSAGE_ENCRYPTION_KEY || '').trim();
-    // Limpiar caracteres ocultos como \r (Windows)
-    keyHex = keyHex.replace(/[\r\n]/g, '');
+    // Limpiar todo lo que no sea hexadecimal
+    let keyHex = (process.env.MESSAGE_ENCRYPTION_KEY || '').replace(/[^0-9a-fA-F]/g, '');
 
     if (!keyHex) {
       throw new Error(
@@ -23,12 +22,6 @@ export class EncryptionService implements OnModuleInit {
     if (keyHex.length !== 64) {
       throw new Error(
         `MESSAGE_ENCRYPTION_KEY debe tener exactamente 64 caracteres (256 bits en hex), tiene: ${keyHex.length}`,
-      );
-    }
-
-    if (!/^[0-9a-fA-F]+$/.test(keyHex)) {
-      throw new Error(
-        'MESSAGE_ENCRYPTION_KEY debe ser solo caracteres hexadecimales (0-9, a-f)',
       );
     }
 

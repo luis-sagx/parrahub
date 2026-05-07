@@ -164,12 +164,32 @@ jobs:
           cd backend
           pnpm install --frozen-lockfile
           pnpm run db:generate
+          pnpm exec prisma migrate deploy
+          pnpm run db:seed
           pnpm run build
-      - name: Start backend and wait for services
+        env:
+          DATABASE_URL: postgresql://chatuser:chatpassword@localhost:5432/chatdb
+          ADMIN_USERNAME: admin
+          ADMIN_PASSWORD: Admin1234!
+      - name: Start backend and run k6 load test
         run: |
-          # Iniciar backend en background
+          set -euo pipefail
+
+          BACKEND_LOG="$RUNNER_TEMP/backend-k6.log"
+
+          cleanup() {
+            if [ -n "${BACKEND_PID:-}" ] && kill -0 "$BACKEND_PID" 2>/dev/null; then
+              kill "$BACKEND_PID" 2>/dev/null || true
+              wait "$BACKEND_PID" 2>/dev/null || true
+            fi
+          }
+
+          trap cleanup EXIT
+
           cd backend
-          pnpm run start:prod &
+          pnpm run start:prod > "$BACKEND_LOG" 2>&1 &
+          BACKEND_PID=$!
+          cd ..
           
           echo "Waiting for MinIO to be ready..."
           for i in {1..30}; do
@@ -183,6 +203,12 @@ jobs:
           
           echo "Waiting for backend to be ready..."
           for i in {1..30}; do
+            if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+              echo "Backend exited before becoming ready"
+              cat "$BACKEND_LOG"
+              exit 1
+            fi
+
             # Usar endpoint GET público
             if curl -sf -o /dev/null -w "%{http_code}" http://localhost:3000/api/rooms/public | grep -q "200\|401"; then
               echo "Backend is ready"
@@ -191,6 +217,22 @@ jobs:
             echo "Waiting for backend... ($i/30)"
             sleep 2
           done
+
+          if ! curl -sf -o /dev/null -w "%{http_code}" http://localhost:3000/api/rooms/public | grep -q "200\|401"; then
+            echo "Backend did not become ready in time"
+            cat "$BACKEND_LOG"
+            exit 1
+          fi
+
+          docker run --rm --network host \
+            -v "$PWD:/work" \
+            -w /work \
+            -e BASE_URL \
+            -e ADMIN_USERNAME \
+            -e ADMIN_PASSWORD \
+            grafana/k6 run k6/load-test.js
+
+          echo "k6 load test finished successfully"
         env:
           DATABASE_URL: postgresql://chatuser:chatpassword@localhost:5432/chatdb
           MONGODB_URI: mongodb://chatuser:chatpassword@localhost:27017/chatdb?authSource=admin
@@ -204,11 +246,6 @@ jobs:
           MINIO_SECRET_KEY: minioadmin
           MINIO_BUCKET: chat-files
           PORT: 3000
-      - name: Run k6 load test
-        uses: grafana/k6-action@v0.3.0
-        with:
-          filename: k6/load-test.js
-        env:
-          BASE_URL: http://host.docker.internal:3000/api
+          BASE_URL: http://localhost:3000/api
           ADMIN_USERNAME: admin
           ADMIN_PASSWORD: Admin1234!

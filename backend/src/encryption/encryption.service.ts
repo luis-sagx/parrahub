@@ -10,8 +10,10 @@ export class EncryptionService implements OnModuleInit {
   private key: Buffer;
 
   onModuleInit() {
-    // Limpiar todo lo que no sea hexadecimal
-    let keyHex = (process.env.MESSAGE_ENCRYPTION_KEY || '').replace(/[^0-9a-fA-F]/g, '');
+    // Tomar solo los primeros 64 caracteres hex después de limpiar
+    const keyHex = (process.env.MESSAGE_ENCRYPTION_KEY || '')
+      .replace(/[^0-9a-fA-F]/g, '')
+      .substring(0, 64);
 
     if (!keyHex) {
       throw new Error(

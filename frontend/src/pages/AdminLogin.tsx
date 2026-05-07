@@ -55,7 +55,7 @@ export default function AdminLogin() {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-fg">
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-6 py-10">
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-6">
         <section className="grid w-full gap-10 lg:grid-cols-[1fr_420px] lg:items-center">
           {/* Panel informativo visible en escritorio; en movil queda solo el formulario. */}
           <div className="hidden max-w-xl lg:block">

@@ -70,7 +70,7 @@ export default function JoinRoom() {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-fg">
-      <div className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center px-6 py-10">
+      <div className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center px-6">
         <section className="grid w-full gap-10 lg:grid-cols-[1fr_420px] lg:items-center">
           <div className="hidden max-w-xl lg:block">
             {/* Resumen visible en escritorio con el ID para confirmar la sala destino. */}

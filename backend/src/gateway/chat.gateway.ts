@@ -15,6 +15,7 @@ import { Model } from 'mongoose';
 import { RedisService } from '../redis/redis.service';
 import { RoomsService } from '../rooms/rooms.service';
 import { Message } from '../mongoose/message.schema';
+import { EncryptionService } from '../encryption/encryption.service';
 
 interface JoinRoomPayload {
   roomId: string;
@@ -85,6 +86,7 @@ export class ChatGateway
   constructor(
     private readonly redisService: RedisService,
     private readonly roomsService: RoomsService,
+    private readonly encryptionService: EncryptionService,
     @InjectModel('Message') private readonly messageModel: Model<Message>,
   ) {}
 
@@ -305,9 +307,10 @@ export class ChatGateway
         history: history
           .reverse()
           .map((message) =>
-            this.normalizeStoredMessage(
-              message as unknown as Record<string, unknown>,
-            ),
+            this.normalizeStoredMessage({
+              ...message,
+              content: this.encryptionService.decrypt(message.content as string),
+            } as unknown as Record<string, unknown>),
           ),
         users,
         reconnected: true,
@@ -381,9 +384,10 @@ export class ChatGateway
       history: history
         .reverse()
         .map((message) =>
-          this.normalizeStoredMessage(
-            message as unknown as Record<string, unknown>,
-          ),
+          this.normalizeStoredMessage({
+            ...message,
+            content: this.encryptionService.decrypt(message.content as string),
+          } as unknown as Record<string, unknown>),
         ),
       users,
     } satisfies JoinSuccessPayload);
@@ -422,6 +426,9 @@ export class ChatGateway
     const content = payload.content.trim();
     const participants = await this.redisService.getRoomUsers(roomId);
 
+    // Encriptar contenido para almacenar en MongoDB (protegido contra acceso directo a la DB)
+    const encryptedContent = this.encryptionService.encrypt(content);
+
     if (deviceId) {
       this.clearInactivityTimer(client.id);
       this.startInactivityTimer(client, deviceId);
@@ -430,7 +437,7 @@ export class ChatGateway
     const message = {
       roomId,
       nickname,
-      content,
+      content: encryptedContent, // Se guarda encriptado
       type: 'text' as const,
       reactions: [],
       participants,
@@ -440,14 +447,19 @@ export class ChatGateway
 
     try {
       const storedMessage = await this.messageModel.create(message);
-      this.server
-        .to(roomId)
-        .emit(
-          'new-message',
-          this.normalizeStoredMessage(
-            storedMessage.toObject() as unknown as Record<string, unknown>,
-          ),
-        );
+
+      // Desencriptar para enviar al cliente
+      const decryptedContent = this.encryptionService.decrypt(
+        storedMessage.content as string,
+      );
+
+      this.server.to(roomId).emit(
+        'new-message',
+        this.normalizeStoredMessage({
+          ...storedMessage.toObject(),
+          content: decryptedContent, // Enviar desencriptado al cliente
+        } as unknown as Record<string, unknown>),
+      );
     } catch (err: unknown) {
       this.logger.error('Error guardando mensaje en MongoDB:', err);
       client.emit('error', {

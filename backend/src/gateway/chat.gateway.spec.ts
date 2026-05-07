@@ -1,6 +1,7 @@
 import { ChatGateway } from './chat.gateway';
 import { RedisService } from '../redis/redis.service';
 import { RoomsService } from '../rooms/rooms.service';
+import { EncryptionService } from '../encryption/encryption.service';
 import { Socket } from 'socket.io';
 
 describe('ChatGateway', () => {
@@ -31,6 +32,11 @@ describe('ChatGateway', () => {
     getRoomWithPin: jest.fn(),
   };
 
+  const mockEncryptionService = {
+    encrypt: jest.fn().mockImplementation((text: string) => text),
+    decrypt: jest.fn().mockImplementation((text: string) => text),
+  };
+
   const mockMessageModel = {
     find: jest.fn().mockReturnThis(),
     sort: jest.fn().mockReturnThis(),
@@ -46,6 +52,7 @@ describe('ChatGateway', () => {
     gateway = new ChatGateway(
       mockRedisService as any,
       mockRoomsService as any,
+      mockEncryptionService as any,
       mockMessageModel as any,
     );
 

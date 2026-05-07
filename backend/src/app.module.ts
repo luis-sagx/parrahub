@@ -9,6 +9,7 @@ import { RoomsModule } from './rooms/rooms.module';
 import { GatewayModule } from './gateway/gateway.module';
 import { MinioModule } from './minio/minio.module';
 import { FilesModule } from './files/files.module';
+import { EncryptionModule } from './encryption/encryption.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { FilesModule } from './files/files.module';
     PrismaModule,
     RedisModule,
     AppMongooseModule,
+    EncryptionModule,
     AuthModule,
     RoomsModule,
     GatewayModule,

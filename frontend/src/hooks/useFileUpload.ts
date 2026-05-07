@@ -1,16 +1,8 @@
 import { useState } from 'react'
 import axios from 'axios'
 import { uploadFile as uploadFileRequest } from '@/services/filesApi'
+import { validateFileForUpload } from '@/lib/fileUpload'
 import { useChatStore } from '@/store/chatStore'
-
-const ALLOWED_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-  'application/pdf',
-  'text/plain',
-]
 
 export function useFileUpload() {
   const { currentRoom, nickname } = useChatStore()
@@ -25,17 +17,10 @@ export function useFileUpload() {
       return false
     }
 
-    // Primera validacion local para evitar enviar archivos que el backend rechazaria.
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      setError('Tipo de archivo no permitido')
-      return false
-    }
-
-    const maxBytes = currentRoom.maxFileSize * 1024 * 1024
-
-    // El limite viene de la configuracion de la sala.
-    if (file.size > maxBytes) {
-      setError(`Archivo demasiado grande (max ${currentRoom.maxFileSize}MB)`)
+    const validationError = validateFileForUpload(file, currentRoom.maxFileSize)
+    if (validationError) {
+      // Primera validacion local para evitar enviar archivos que el backend rechazaria.
+      setError(validationError)
       return false
     }
 

@@ -6,10 +6,15 @@ import {
   UploadCloud,
   X,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { v4 as uuidv4 } from 'uuid'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { useFileUpload } from '@/hooks/useFileUpload'
+import {
+  MAX_FILES_PER_UPLOAD_BATCH,
+  validateFileForUpload,
+} from '@/lib/fileUpload'
 import { useChatStore } from '@/store/chatStore'
 
 interface PendingUpload {
@@ -69,6 +74,14 @@ export default function FileUpload() {
     }
   }, [])
 
+  useEffect(() => {
+    if (error) {
+      toast.error(error, {
+        id: `upload-error-${error}`,
+      })
+    }
+  }, [error])
+
   const clearSelection = () => {
     pendingFilesRef.current.forEach(revokeUploadPreview)
     pendingFilesRef.current = []
@@ -85,9 +98,58 @@ export default function FileUpload() {
   const handleFiles = async (files: FileList | File[]) => {
     const selectedFiles = Array.from(files)
     if (selectedFiles.length === 0) return
+    if (!currentRoom) return
 
-    const builtUploads = await Promise.all(selectedFiles.map(buildPendingUpload))
+    const remainingSlots =
+      MAX_FILES_PER_UPLOAD_BATCH - pendingFilesRef.current.length
+
+    if (remainingSlots <= 0) {
+      toast.warning(
+        `Solo puedes adjuntar hasta ${MAX_FILES_PER_UPLOAD_BATCH} archivos a la vez`,
+      )
+      if (inputRef.current) {
+        inputRef.current.value = ''
+      }
+      return
+    }
+
+    const filesWithinLimit = selectedFiles.slice(0, remainingSlots)
+    const rejectedByCount = selectedFiles.length - filesWithinLimit.length
+    const acceptedFiles = filesWithinLimit.filter(
+      (file) => !validateFileForUpload(file, currentRoom.maxFileSize),
+    )
+    const invalidFiles = filesWithinLimit
+      .map((file) => validateFileForUpload(file, currentRoom.maxFileSize))
+      .filter((message): message is string => Boolean(message))
+
+    const selectionMessages: string[] = []
+
+    if (rejectedByCount > 0) {
+      selectionMessages.push(
+        `Solo puedes adjuntar hasta ${MAX_FILES_PER_UPLOAD_BATCH} archivos a la vez`,
+      )
+    }
+
+    if (invalidFiles.length > 0) {
+      selectionMessages.push(invalidFiles[0])
+    }
+
     reset()
+
+    selectionMessages.forEach((message, index) => {
+      toast.error(message, {
+        id: `file-selection-${index}-${message}`,
+      })
+    })
+
+    if (acceptedFiles.length === 0) {
+      if (inputRef.current) {
+        inputRef.current.value = ''
+      }
+      return
+    }
+
+    const builtUploads = await Promise.all(acceptedFiles.map(buildPendingUpload))
 
     setPendingFiles((current) => {
       const next = [...current, ...builtUploads]
@@ -181,7 +243,8 @@ export default function FileUpload() {
             </span>
           </div>
           <p className="mt-1 text-xs text-[#62666d]">
-            Max {currentRoom.maxFileSize}MB por archivo. Imagen, PDF o texto.
+            Max {currentRoom.maxFileSize}MB por archivo y hasta{' '}
+            {MAX_FILES_PER_UPLOAD_BATCH} por envio. Imagen, PDF o texto.
           </p>
         </div>
 
@@ -224,7 +287,7 @@ export default function FileUpload() {
                 </Button>
               </div>
 
-              <div className="max-h-64 space-y-2 overflow-auto pr-1">
+              <div className="space-y-2 pr-1">
                 {pendingFiles.map((item, index) => {
                   const isActive = item.id === activePreview.id
                   const isCurrentUpload = uploadingIndex === index && isUploading
@@ -355,8 +418,6 @@ export default function FileUpload() {
       {isUploading && (
         <Progress className="mt-3 bg-white/[0.08]" value={progress} />
       )}
-
-      {error && <p className="mt-2 text-sm text-red-300">{error}</p>}
     </div>
   )
 }

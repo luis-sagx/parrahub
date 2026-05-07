@@ -169,8 +169,9 @@ jobs:
           pnpm run build
         env:
           DATABASE_URL: postgresql://chatuser:chatpassword@localhost:5432/chatdb
-          ADMIN_USERNAME: admin
-          ADMIN_PASSWORD: Admin1234!
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          MESSAGE_ENCRYPTION_KEY: ${{ secrets.MESSAGE_ENCRYPTION_KEY }}
       - name: Start backend and run k6 load test
         run: |
           set -euo pipefail
@@ -190,7 +191,7 @@ jobs:
           pnpm run start:prod > "$BACKEND_LOG" 2>&1 &
           BACKEND_PID=$!
           cd ..
-          
+
           echo "Waiting for MinIO to be ready..."
           for i in {1..30}; do
             if curl -sf http://localhost:9000/minio/health/live > /dev/null 2>&1; then
@@ -200,7 +201,7 @@ jobs:
             echo "Waiting for MinIO... ($i/30)"
             sleep 2
           done
-          
+
           echo "Waiting for backend to be ready..."
           for i in {1..30}; do
             if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
@@ -249,3 +250,4 @@ jobs:
           BASE_URL: http://localhost:3000/api
           ADMIN_USERNAME: admin
           ADMIN_PASSWORD: Admin1234!
+          MESSAGE_ENCRYPTION_KEY: 01e2e3d4e5f607182938475664738394545566778899000aabbcccddeeff001122

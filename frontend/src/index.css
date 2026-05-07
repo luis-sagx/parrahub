@@ -133,10 +133,13 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
-    @apply font-sans;
+    @apply h-full bg-zinc-950 font-sans;
+  }
+  body {
+    @apply min-h-full bg-zinc-950 text-foreground overflow-x-hidden;
+  }
+  #root {
+    @apply min-h-screen bg-zinc-950;
   }
 }

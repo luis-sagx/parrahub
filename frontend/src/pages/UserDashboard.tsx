@@ -44,7 +44,7 @@ export default function UserDashboard() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div>
             <h1 className="text-xl font-semibold">
-              Parra <span className="bg-brand p-1 rounded ml-0.5">hub</span>
+              Parras <span className="bg-brand p-1 rounded ml-0.5">hub</span>
             </h1>
           </div>
 

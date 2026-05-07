@@ -149,7 +149,9 @@ export default function FileUpload() {
       return
     }
 
-    const builtUploads = await Promise.all(acceptedFiles.map(buildPendingUpload))
+    const builtUploads = await Promise.all(
+      acceptedFiles.map(buildPendingUpload),
+    )
 
     setPendingFiles((current) => {
       const next = [...current, ...builtUploads]
@@ -261,7 +263,7 @@ export default function FileUpload() {
       </div>
 
       {pendingFiles.length > 0 && activePreview && (
-        <div className="mt-3 -mx-1 rounded-xl border border-white/[0.08] bg-[#111315] p-4">
+        <div className="mt-3 -mx-1 max-h-[70vh] overflow-y-auto rounded-xl border border-white/[0.08] bg-[#111315] p-4 md:max-h-none md:overflow-visible">
           <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-3">
@@ -290,7 +292,8 @@ export default function FileUpload() {
               <div className="space-y-2 pr-1">
                 {pendingFiles.map((item, index) => {
                   const isActive = item.id === activePreview.id
-                  const isCurrentUpload = uploadingIndex === index && isUploading
+                  const isCurrentUpload =
+                    uploadingIndex === index && isUploading
 
                   return (
                     <button
@@ -354,7 +357,7 @@ export default function FileUpload() {
                 activePreview.file.type.startsWith('image/') && (
                   <img
                     alt={activePreview.file.name}
-                    className="mt-3 h-[min(58vh,34rem)] w-full rounded-xl border border-white/[0.08] bg-black/30 object-contain"
+                    className="mt-3 h-[min(32vh,14rem)] w-full rounded-xl border border-white/[0.08] bg-black/30 object-contain sm:h-[min(58vh,34rem)]"
                     src={activePreview.previewUrl}
                   />
                 )}
@@ -362,7 +365,7 @@ export default function FileUpload() {
               {activePreview.previewUrl &&
                 activePreview.file.type === 'application/pdf' && (
                   <iframe
-                    className="mt-3 h-[min(68vh,42rem)] w-full rounded-xl border border-white/[0.08] bg-white"
+                    className="mt-3 h-[min(40vh,18rem)] w-full rounded-xl border border-white/[0.08] bg-white sm:h-[min(68vh,42rem)]"
                     src={activePreview.previewUrl}
                     title={`Preview de ${activePreview.file.name}`}
                   />
@@ -374,7 +377,7 @@ export default function FileUpload() {
                     <FileText className="h-4 w-4" />
                     Vista previa de texto
                   </div>
-                  <pre className="h-[min(50vh,30rem)] overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-[#d0d6e0]">
+                  <pre className="h-[min(30vh,14rem)] overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-[#d0d6e0] sm:h-[min(50vh,30rem)]">
                     {activePreview.textPreview || 'Archivo de texto vacio'}
                   </pre>
                 </div>
@@ -383,13 +386,14 @@ export default function FileUpload() {
               {!activePreview.previewUrl &&
                 activePreview.textPreview === null && (
                   <div className="mt-3 rounded-xl border border-dashed border-white/[0.08] px-3 py-6 text-xs text-[#8a8f98]">
-                    El archivo esta listo para enviarse. No tiene preview visual en esta vista.
+                    El archivo esta listo para enviarse. No tiene preview visual
+                    en esta vista.
                   </div>
                 )}
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap justify-end gap-2">
+          <div className="sticky bottom-0 mt-3 flex flex-wrap justify-end gap-2 bg-[#111315] pt-3 md:static md:bg-transparent md:pt-0">
             <Button
               className="border-white/[0.08] bg-white/[0.04] text-slate-300"
               disabled={isUploading}

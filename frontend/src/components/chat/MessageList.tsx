@@ -30,6 +30,8 @@ const formatTime = (timestamp: Message['timestamp']) =>
 const isImageMessage = (message: Message) =>
   message.type === 'file' && message.mimeType?.startsWith('image/')
 
+const isSystemMessage = (message: Message) => message.type === 'system'
+
 const getParticipants = (message: Message) =>
   Array.from(new Set(message.participants?.length ? message.participants : [message.nickname]))
 
@@ -170,6 +172,33 @@ export default function MessageList() {
       >
         <div className="space-y-3">
           {messages.map((message) => {
+            if (isSystemMessage(message)) {
+              return (
+                <article
+                  key={message.id}
+                  className="flex justify-center"
+                  data-message-id={message.id}
+                  ref={(element) => {
+                    if (element) {
+                      messageElementsRef.current.set(message.id, element)
+                      return
+                    }
+
+                    messageElementsRef.current.delete(message.id)
+                    visibleMessageIdsRef.current.delete(message.id)
+                  }}
+                >
+                  <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs text-[#aeb4bf]">
+                    <Info className="h-3.5 w-3.5 text-[#7170ff]" />
+                    <span>{message.content}</span>
+                    <span className="text-[#7f8590]">
+                      {formatTime(message.timestamp)}
+                    </span>
+                  </div>
+                </article>
+              )
+            }
+
             const isOwn = message.nickname === nickname
             const userColor = getUserColor(message.nickname)
             const reactions = message.reactions ?? []

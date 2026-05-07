@@ -6,6 +6,7 @@ import {
   saveChatSession,
   type StoredChatSession,
 } from '@/lib/chatSession'
+import { buildSystemMessage } from '@/lib/systemMessages'
 import { socket } from '@/lib/socket'
 import { useChatStore } from '@/store/chatStore'
 import type { Message, MessageReaction, Room } from '@/types'
@@ -91,7 +92,9 @@ export function useSocket() {
   const {
     addMessage,
     clearRoom,
+    currentRoom,
     isConnected,
+    nickname,
     setConnected,
     setJoinError,
     setJoining,
@@ -156,13 +159,21 @@ export function useSocket() {
       updateMessageSeenBy(payload.messageId, payload.seenBy)
     }
 
-    const handleUserJoined = ({ users }: UsersUpdatedPayload) => {
+    const handleUserJoined = ({ nickname: joinedNickname, users }: UsersUpdatedPayload) => {
       // El backend manda la lista completa para mantener presencia consistente.
       setUsers(users)
+
+      if (!currentRoom || joinedNickname === nickname) return
+
+      addMessage(buildSystemMessage(currentRoom.id, joinedNickname, 'joined'))
     }
 
-    const handleUserLeft = ({ users }: UsersUpdatedPayload) => {
+    const handleUserLeft = ({ nickname: leftNickname, users }: UsersUpdatedPayload) => {
       setUsers(users)
+
+      if (!currentRoom || leftNickname === nickname) return
+
+      addMessage(buildSystemMessage(currentRoom.id, leftNickname, 'left'))
     }
 
     const handleNewFile = (_payload: NewFilePayload) => {
@@ -229,7 +240,9 @@ export function useSocket() {
     }
   }, [
     addMessage,
+    currentRoom,
     navigate,
+    nickname,
     setConnected,
     setJoinError,
     setJoining,

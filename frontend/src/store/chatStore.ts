@@ -19,6 +19,7 @@ interface ChatState {
     reactions: MessageReaction[],
   ) => void
   updateMessageSeenBy: (messageId: string, seenBy: string[]) => void
+  markMessageDeleted: (messageId: string) => void
   setUsers: (users: string[]) => void
   addUser: (nickname: string) => void
   removeUser: (nickname: string) => void
@@ -75,6 +76,13 @@ export const useChatStore = create<ChatState>((set) => ({
     set((state) => ({
       messages: state.messages.map((message) =>
         message.id === messageId ? { ...message, seenBy } : message,
+      ),
+    }))
+  },
+  markMessageDeleted: (messageId: string) => {
+    set((state) => ({
+      messages: state.messages.map((message) =>
+        message.id === messageId ? { ...message, deleted: true } : message,
       ),
     }))
   },

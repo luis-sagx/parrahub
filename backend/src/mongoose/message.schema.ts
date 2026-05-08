@@ -16,6 +16,7 @@ export interface Message extends Document {
   reactions: MessageReaction[];
   participants: string[];
   seenBy: string[];
+  deleted: boolean;
   timestamp: Date;
 }
 
@@ -38,6 +39,7 @@ export const MessageSchema = new Schema<Message>({
   reactions: { type: [MessageReactionSchema], default: [] },
   participants: { type: [String], default: [] },
   seenBy: { type: [String], default: [] },
+  deleted: { type: Boolean, default: false },
   timestamp: { type: Date, default: Date.now },
 });
 

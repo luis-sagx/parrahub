@@ -5,6 +5,7 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "packageManager": "pnpm@9.15.0",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -114,7 +115,9 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
-    "setupFilesAfterEnv": ["<rootDir>/test-setup.ts"]
+    "setupFilesAfterEnv": [
+      "<rootDir>/test-setup.ts"
+    ]
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

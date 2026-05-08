@@ -103,6 +103,7 @@ export function useSocket() {
     setUsers,
     updateMessageReactions,
     updateMessageSeenBy,
+    markMessageDeleted,
   } = useChatStore()
 
   useEffect(() => {
@@ -157,6 +158,15 @@ export function useSocket() {
 
     const handleMessageSeenUpdated = (payload: MessageSeenUpdatedPayload) => {
       updateMessageSeenBy(payload.messageId, payload.seenBy)
+    }
+
+    interface MessageDeletedPayload {
+      messageId: string
+      roomId: string
+    }
+
+    const handleMessageDeleted = (payload: MessageDeletedPayload) => {
+      markMessageDeleted(payload.messageId)
     }
 
     const handleUserJoined = ({ nickname: joinedNickname, users }: UsersUpdatedPayload) => {
@@ -216,6 +226,7 @@ export function useSocket() {
     socket.on('new-message', handleNewMessage)
     socket.on('message-reactions-updated', handleMessageReactionsUpdated)
     socket.on('message-seen-updated', handleMessageSeenUpdated)
+    socket.on('message-deleted', handleMessageDeleted)
     socket.on('user-joined', handleUserJoined)
     socket.on('user-left', handleUserLeft)
     socket.on('new-file', handleNewFile)
@@ -230,6 +241,7 @@ export function useSocket() {
       socket.off('new-message', handleNewMessage)
       socket.off('message-reactions-updated', handleMessageReactionsUpdated)
       socket.off('message-seen-updated', handleMessageSeenUpdated)
+      socket.off('message-deleted', handleMessageDeleted)
       socket.off('user-joined', handleUserJoined)
       socket.off('user-left', handleUserLeft)
       socket.off('new-file', handleNewFile)
@@ -251,6 +263,7 @@ export function useSocket() {
     setUsers,
     updateMessageReactions,
     updateMessageSeenBy,
+    markMessageDeleted,
   ])
 
   const connect = useCallback(

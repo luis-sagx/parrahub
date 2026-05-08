@@ -36,6 +36,10 @@ interface MarkMessagesSeenPayload {
   messageIds: string[];
 }
 
+interface DeleteMessagePayload {
+  messageId: string;
+}
+
 interface ClientData {
   roomId?: string;
   nickname?: string;
@@ -166,6 +170,7 @@ export class ChatGateway
         ? message.participants
         : [],
       seenBy: Array.isArray(message.seenBy) ? message.seenBy : [],
+      deleted: Boolean(message.deleted),
     };
   }
 
@@ -613,5 +618,75 @@ export class ChatGateway
 
     await client.leave(roomId);
     return { ok: true };
+  }
+
+  @SubscribeMessage('delete-message')
+  async handleDeleteMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: DeleteMessagePayload,
+  ) {
+    const data: ClientData = client.data as ClientData;
+    const roomId = data.roomId ?? '';
+    const nickname = data.nickname ?? '';
+
+    if (!roomId || !nickname) {
+      client.emit('error', {
+        code: 'NOT_IN_ROOM',
+        message: 'Debes unirte a una sala primero',
+      });
+      return;
+    }
+
+    const messageId = payload.messageId?.trim();
+    if (!messageId) {
+      client.emit('error', {
+        code: 'INVALID_PAYLOAD',
+        message: 'ID de mensaje requerido',
+      });
+      return;
+    }
+
+    const message = await this.messageModel.findOne({
+      roomId,
+      _id: messageId,
+    });
+
+    if (!message) {
+      client.emit('error', {
+        code: 'MESSAGE_NOT_FOUND',
+        message: 'No se encontro el mensaje',
+      });
+      return;
+    }
+
+    // Validate author: only the author can delete their message
+    if (message.nickname !== nickname) {
+      client.emit('error', {
+        code: 'NOT_AUTHOR',
+        message: 'No puedes eliminar un mensaje que no es tuyo',
+      });
+      return;
+    }
+
+    // Check if already deleted
+    if (message.deleted) {
+      client.emit('error', {
+        code: 'ALREADY_DELETED',
+        message: 'Este mensaje ya fue eliminado',
+      });
+      return;
+    }
+
+    // Mark message as deleted
+    message.deleted = true;
+    await message.save();
+
+    // Broadcast to all users in the room
+    this.server.to(roomId).emit('message-deleted', {
+      messageId,
+      roomId,
+    });
+
+    this.logger.log(`Mensaje ${messageId} eliminado por ${nickname} en sala ${roomId}`);
   }
 }

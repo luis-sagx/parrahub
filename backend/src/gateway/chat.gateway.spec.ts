@@ -39,6 +39,7 @@ describe('ChatGateway', () => {
 
   const mockMessageModel = {
     find: jest.fn().mockReturnThis(),
+    findOne: jest.fn(),
     sort: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(),
     lean: jest.fn().mockReturnThis(),
@@ -568,6 +569,107 @@ describe('ChatGateway', () => {
           content: 'Hello',
         }),
       );
+    });
+  });
+
+  describe('handleDeleteMessage', () => {
+    const mockMessageDoc = {
+      _id: 'msg-1',
+      roomId: 'room-1',
+      nickname: 'user1',
+      content: 'test message',
+      reactions: [],
+      participants: ['user1', 'user2'],
+      seenBy: ['user1'],
+      deleted: false,
+      save: jest.fn().mockResolvedValue(true),
+    };
+
+    it('should delete message when user is the author', async () => {
+      const client = {
+        data: { roomId: 'room-1', nickname: 'user1', deviceId: 'device-123' },
+        emit: jest.fn(),
+      } as unknown as Socket;
+
+      mockMessageModel.findOne.mockResolvedValue({ ...mockMessageDoc });
+
+      await gateway.handleDeleteMessage(client, { messageId: 'msg-1' });
+
+      expect(mockMessageDoc.save).toHaveBeenCalled();
+      expect(gateway['server'].to).toHaveBeenCalledWith('room-1');
+      expect(gateway['server'].to('room-1').emit).toHaveBeenCalledWith('message-deleted', {
+        messageId: 'msg-1',
+        roomId: 'room-1',
+      });
+    });
+
+    it('should reject when user is not the author', async () => {
+      const client = {
+        data: { roomId: 'room-1', nickname: 'user2', deviceId: 'device-456' },
+        emit: jest.fn(),
+      } as unknown as Socket;
+
+      mockMessageModel.findOne.mockResolvedValue({ ...mockMessageDoc });
+
+      await gateway.handleDeleteMessage(client, { messageId: 'msg-1' });
+
+      expect(client.emit).toHaveBeenCalledWith('error', {
+        code: 'NOT_AUTHOR',
+        message: 'No puedes eliminar un mensaje que no es tuyo',
+      });
+      expect(mockMessageDoc.save).not.toHaveBeenCalled();
+    });
+
+    it('should reject when message is already deleted', async () => {
+      const client = {
+        data: { roomId: 'room-1', nickname: 'user1', deviceId: 'device-123' },
+        emit: jest.fn(),
+      } as unknown as Socket;
+
+      const alreadyDeletedMessage = {
+        ...mockMessageDoc,
+        deleted: true,
+      };
+
+      mockMessageModel.findOne.mockResolvedValue(alreadyDeletedMessage);
+
+      await gateway.handleDeleteMessage(client, { messageId: 'msg-1' });
+
+      expect(client.emit).toHaveBeenCalledWith('error', {
+        code: 'ALREADY_DELETED',
+        message: 'Este mensaje ya fue eliminado',
+      });
+      expect(alreadyDeletedMessage.save).not.toHaveBeenCalled();
+    });
+
+    it('should reject when not in a room', async () => {
+      const client = {
+        data: {},
+        emit: jest.fn(),
+      } as unknown as Socket;
+
+      await gateway.handleDeleteMessage(client, { messageId: 'msg-1' });
+
+      expect(client.emit).toHaveBeenCalledWith('error', {
+        code: 'NOT_IN_ROOM',
+        message: 'Debes unirte a una sala primero',
+      });
+    });
+
+    it('should reject when message not found', async () => {
+      const client = {
+        data: { roomId: 'room-1', nickname: 'user1', deviceId: 'device-123' },
+        emit: jest.fn(),
+      } as unknown as Socket;
+
+      mockMessageModel.findOne.mockResolvedValue(null);
+
+      await gateway.handleDeleteMessage(client, { messageId: 'non-existent' });
+
+      expect(client.emit).toHaveBeenCalledWith('error', {
+        code: 'MESSAGE_NOT_FOUND',
+        message: 'No se encontro el mensaje',
+      });
     });
   });
 });

@@ -30,6 +30,7 @@ export interface Message {
   reactions?: MessageReaction[]
   participants?: string[]
   seenBy?: string[]
+  deleted?: boolean
   timestamp: string | number | Date
 }
 

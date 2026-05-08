@@ -5,6 +5,7 @@ import {
   Info,
   MessageSquarePlus,
   MessageSquareText,
+  Trash2,
 } from 'lucide-react'
 import {
   Dialog,
@@ -206,6 +207,7 @@ export default function MessageList() {
             const participants = getParticipants(message)
             const seenBy = getSeenBy(message)
             const isFullySeen = isMessageFullySeen(message)
+            const isDeleted = message.deleted === true
 
             return (
               <article
@@ -222,56 +224,71 @@ export default function MessageList() {
                   visibleMessageIdsRef.current.delete(message.id)
                 }}
               >
-                <div className="group flex max-w-[min(82%,680px)] flex-col items-start">
-                  <div
-                    className={`rounded-lg border px-3 py-2 ${
-                      isOwn
-                        ? 'border-[#5e6ad2]/30 bg-[#5e6ad2]/20'
-                        : 'border-white/[0.08] bg-white/[0.035]'
-                    }`}
-                  >
-                    <div className="mb-1 flex items-center gap-2 text-xs text-[#8a8f98]">
-                      <span className="font-medium" style={{ color: userColor }}>
+                <div className={cn(
+                      'group flex flex-col',
+                      isOwn ? 'items-end max-w-[75%]' : 'items-start max-w-[75%]'
+                    )}>
+                  {isDeleted ? (
+                    <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2">
+                      <p className="text-xs font-medium text-[#6b6f7a] mb-1">
                         {message.nickname}
-                      </span>
-                      <span>{formatTime(message.timestamp)}</span>
-                    </div>
-
-                    {message.type === 'file' ? (
-                      <div className="space-y-2">
-                        {showsImagePreview && (
-                          <a
-                            href={message.fileUrl}
-                            rel="noreferrer"
-                            target="_blank"
-                          >
-                            <img
-                              alt={message.filename ?? 'Imagen adjunta'}
-                              className="max-h-56 rounded-md border border-white/[0.08] object-cover"
-                              src={message.fileUrl}
-                            />
-                          </a>
-                        )}
-
-                        {!showsImagePreview && (
-                          <a
-                            className="inline-flex items-center gap-2 text-sm text-[#828fff] underline-offset-4 hover:underline"
-                            href={message.fileUrl}
-                            rel="noreferrer"
-                            target="_blank"
-                          >
-                            <FileText className="h-4 w-4" />
-                            {message.filename ?? 'Archivo adjunto'}
-                          </a>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[#f7f8f8]">
-                        {message.content}
                       </p>
-                    )}
-                  </div>
+                      <p className="italic text-sm leading-6 text-[#6b6f7a]">
+                        Mensaje eliminado
+                      </p>
+                    </div>
+                  ) : (
+                    <div
+                      className={`rounded-lg border px-3 py-2 ${
+                        isOwn
+                          ? 'border-[#5e6ad2]/30 bg-[#5e6ad2]/20'
+                          : 'border-white/[0.08] bg-white/[0.035]'
+                      }`}
+                    >
+                      <div className="mb-1 flex items-center gap-2 text-xs text-[#8a8f98]">
+                        <span className="font-medium" style={{ color: userColor }}>
+                          {message.nickname}
+                        </span>
+                        <span>{formatTime(message.timestamp)}</span>
+                      </div>
 
+                      {message.type === 'file' ? (
+                        <div className="space-y-2">
+                          {showsImagePreview && (
+                            <a
+                              href={message.fileUrl}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              <img
+                                alt={message.filename ?? 'Imagen adjunta'}
+                                className="max-h-56 rounded-md border border-white/[0.08] object-cover"
+                                src={message.fileUrl}
+                              />
+                            </a>
+                          )}
+
+                          {!showsImagePreview && (
+                            <a
+                              className="inline-flex items-center gap-2 text-sm text-[#828fff] underline-offset-4 hover:underline"
+                              href={message.fileUrl}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              <FileText className="h-4 w-4" />
+                              {message.filename ?? 'Archivo adjunto'}
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[#f7f8f8]">
+                          {message.content}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {!isDeleted && (
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     {reactions.map((reaction) => {
                       const reactedByCurrentUser = reaction.users.includes(nickname)
@@ -368,7 +385,10 @@ export default function MessageList() {
                         {seenBy.length}/{participants.length}
                       </span>
                     )}
+
+                    
                   </div>
+                )}
                 </div>
               </article>
             )
@@ -396,40 +416,64 @@ export default function MessageList() {
                 <p className="text-xs text-slate-400">
                   {selectedMessage.nickname} • {formatTime(selectedMessage.timestamp)}
                 </p>
-                <p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-100">
-                  {selectedMessage.type === 'file'
-                    ? selectedMessage.filename ?? selectedMessage.content
-                    : selectedMessage.content}
-                </p>
+                {selectedMessage.deleted ? (
+                  <p className="mt-2 italic text-sm text-[#6b6f7a]">
+                    Mensaje eliminado
+                  </p>
+                ) : (
+                  <p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-100">
+                    {selectedMessage.type === 'file'
+                      ? selectedMessage.filename ?? selectedMessage.content
+                      : selectedMessage.content}
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-2">
-                {getParticipants(selectedMessage).map((participant) => {
-                  const alreadySeen = getSeenBy(selectedMessage).includes(participant)
+              {!selectedMessage.deleted && (
+                <div className="space-y-2">
+                  {getParticipants(selectedMessage).map((participant) => {
+                    const alreadySeen = getSeenBy(selectedMessage).includes(participant)
 
-                  return (
-                    <div
-                      key={`${selectedMessage.id}-${participant}`}
-                      className="flex items-center justify-between rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2"
-                    >
-                      <span
-                        className="text-sm font-medium"
-                        style={{ color: getUserColor(participant) }}
+                    return (
+                      <div
+                        key={`${selectedMessage.id}-${participant}`}
+                        className="flex items-center justify-between rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2"
                       >
-                        {participant}
-                      </span>
-                      <span
-                        className={cn(
-                          'text-xs font-medium',
-                          alreadySeen ? 'text-sky-300' : 'text-slate-400',
-                        )}
-                      >
-                        {alreadySeen ? 'Vio el mensaje' : 'Aun no lo ve'}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
+                        <span
+                          className="text-sm font-medium"
+                          style={{ color: getUserColor(participant) }}
+                        >
+                          {participant}
+                        </span>
+                        <span
+                          className={cn(
+                            'text-xs font-medium',
+                            alreadySeen ? 'text-sky-300' : 'text-slate-400',
+                          )}
+                        >
+                          {alreadySeen ? 'Vio el mensaje' : 'Aun no lo ve'}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {selectedMessage.nickname === nickname && !selectedMessage.deleted && (
+                <button
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-400 transition hover:bg-red-500/20"
+                  onClick={() => {
+                    socket.emit('delete-message', {
+                      messageId: selectedMessage.id,
+                    })
+                    setSelectedMessageId(null)
+                  }}
+                  type="button"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Eliminar mensaje
+                </button>
+              )}
             </div>
           )}
         </DialogContent>

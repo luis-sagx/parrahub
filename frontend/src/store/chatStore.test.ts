@@ -127,6 +127,32 @@ describe('useChatStore', () => {
         'user2',
       ])
     })
+
+    it('actualiza participants cuando el backend los envia', () => {
+      useChatStore.getState().setMessages([testMessage])
+      useChatStore
+        .getState()
+        .updateMessageSeenBy('msg-1', ['user1', 'user2'], ['user1', 'user2'])
+
+      expect(useChatStore.getState().messages[0].participants).toEqual([
+        'user1',
+        'user2',
+      ])
+    })
+  })
+
+  describe('markMessageDeleted', () => {
+    it('marca un mensaje como eliminado', () => {
+      useChatStore.getState().setMessages([testMessage])
+      useChatStore.getState().markMessageDeleted('msg-1')
+      expect(useChatStore.getState().messages[0].deleted).toBe(true)
+    })
+
+    it('no modifica otros mensajes', () => {
+      useChatStore.getState().setMessages([testMessage])
+      useChatStore.getState().markMessageDeleted('msg-2')
+      expect(useChatStore.getState().messages[0].deleted).toBeUndefined()
+    })
   })
 
   describe('setUsers', () => {

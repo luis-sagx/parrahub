@@ -20,7 +20,7 @@ export default defineConfig({
     hmr: process.env.VITE_HMR_HOST
       ? {
           host: process.env.VITE_HMR_HOST,
-          port: parseInt(process.env.VITE_HMR_PORT || '443'),
+          clientPort: parseInt(process.env.VITE_HMR_PORT || '443'),
           protocol: process.env.VITE_HMR_PROTOCOL || 'wss',
         }
       : undefined,

@@ -1,5 +1,6 @@
 import { io } from 'socket.io-client'
 import { v4 as uuidv4 } from 'uuid'
+import { getDeviceFingerprint } from '@/lib/deviceFingerprint'
 
 const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001'
 
@@ -13,12 +14,14 @@ function getDeviceId(): string {
 }
 
 // Instancia unica de Socket.IO. autoConnect=false permite conectarse solo al ingresar a sala.
-// El deviceId se envía en el handshake para trackear sesiones por dispositivo.
+// El deviceId se envia en el handshake para trackear sesiones por dispositivo.
 export const socket = io(socketUrl, {
   autoConnect: false,
   withCredentials: true,
   transports: ['websocket', 'polling'],
   auth: {
     deviceId: getDeviceId(),
+    // El backend combina esto con IP para impedir otra sesion desde el mismo dispositivo.
+    deviceFingerprint: getDeviceFingerprint(),
   },
 })

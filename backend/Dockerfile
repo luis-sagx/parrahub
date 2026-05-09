@@ -17,12 +17,15 @@ CMD ["pnpm", "run", "start:dev"]
 
 FROM node:20-alpine AS prod
 WORKDIR /app
-ENV NODE_ENV=production
 RUN corepack enable
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/prisma.config.ts ./prisma.config.ts
+COPY --from=build /app/tsconfig.json ./tsconfig.json
+COPY --from=build /app/tsconfig.seed.json ./tsconfig.seed.json
 RUN pnpm run db:generate
 COPY --from=build /app/dist ./dist
+ENV NODE_ENV=production
 EXPOSE 3000
 CMD ["pnpm", "run", "start:prod"]

@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getDeviceFingerprint } from '@/lib/deviceFingerprint'
 import { useAuthStore } from '@/store/authStore'
 
 const instance = axios.create({
@@ -21,6 +22,8 @@ instance.interceptors.request.use((config) => {
   if (deviceId) {
     config.headers['x-device-id'] = deviceId
   }
+  // HTTP uploads necesitan el mismo fingerprint que usa el socket.
+  config.headers['x-device-fingerprint'] = getDeviceFingerprint()
 
   return config
 })

@@ -45,6 +45,7 @@ interface ClientData {
   nickname?: string;
   ip?: string;
   deviceId?: string;
+  sessionLockKey?: string;
   cleanedUp?: boolean;
 }
 
@@ -60,6 +61,7 @@ interface JoinSuccessPayload {
 interface MessageSeenUpdatedPayload {
   messageId: string;
   seenBy: string[];
+  participants?: string[];
 }
 
 interface LeaveRoomAck {
@@ -72,20 +74,31 @@ const ALLOWED_MESSAGE_REACTIONS = new Set(['👍', '❤️', '😂', '😮', '�
   cors: { origin: '*', credentials: true },
   namespace: '/',
   transports: ['websocket', 'polling'],
+  pingInterval: 5000,
+  pingTimeout: 5000,
 })
 export class ChatGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   private readonly logger = new Logger(ChatGateway.name);
   private readonly inactivityTimeoutMs = parseInt(
     process.env.INACTIVITY_TIMEOUT_MS || '1800000',
     10,
   );
+  private readonly presenceHeartbeatMs = parseInt(
+    process.env.PRESENCE_HEARTBEAT_MS || '5000',
+    10,
+  );
+  private readonly disconnectGraceMs = parseInt(
+    process.env.DISCONNECT_GRACE_MS || '5000',
+    10,
+  );
   private inactivityTimers = new Map<string, NodeJS.Timeout>();
   private cleanupTimers = new Map<string, NodeJS.Timeout>();
+  private presenceHeartbeatTimer?: NodeJS.Timeout;
 
   constructor(
     private readonly redisService: RedisService,
@@ -96,6 +109,7 @@ export class ChatGateway
 
   async afterInit(server: Server) {
     this.server = server;
+    this.startPresenceHeartbeat();
 
     try {
       // Create a Redis client for worker event subscriptions
@@ -143,8 +157,92 @@ export class ChatGateway
     }
   }
 
+  private startPresenceHeartbeat() {
+    if (this.presenceHeartbeatTimer) return;
+
+    // Refresca presencia aunque el usuario no escriba mensajes.
+    this.presenceHeartbeatTimer = setInterval(() => {
+      void this.refreshPresence();
+    }, this.presenceHeartbeatMs);
+
+    this.presenceHeartbeatTimer.unref?.();
+  }
+
+  private async refreshPresence() {
+    const roomIds = new Set<string>();
+    const sockets = this.server?.sockets?.sockets;
+    if (!sockets) return;
+
+    for (const client of sockets.values()) {
+      const data = client.data as ClientData;
+      if (!data?.roomId || !data.nickname || data.cleanedUp) continue;
+
+      await this.redisService.refreshUserInRoom(data.roomId, data.nickname);
+      roomIds.add(data.roomId);
+    }
+
+    for (const roomId of roomIds) {
+      // Emite la lista ya podada para que el frontend no muestre usuarios fantasmas.
+      const users = await this.redisService.getRoomUsers(roomId);
+      this.server.to(roomId).emit('users-updated', { users });
+    }
+  }
+
+  private async touchClientPresence(data: ClientData) {
+    if (!data.roomId || !data.nickname || data.cleanedUp) return;
+
+    // Cada accion del usuario tambien cuenta como heartbeat inmediato.
+    await this.redisService.refreshUserInRoom(data.roomId, data.nickname);
+    const users = await this.redisService.getRoomUsers(data.roomId);
+    this.server.to(data.roomId).emit('users-updated', { users });
+  }
+
+  private async getActiveRoomUsers(roomId: string): Promise<string[]> {
+    if (!this.server?.in) {
+      return this.redisService.getRoomUsers(roomId);
+    }
+
+    const sockets = await this.server.in(roomId).fetchSockets();
+    // Para vistos/participantes usamos sockets vivos, no solo Redis.
+    const socketUsers = sockets
+      .map((socket) => (socket.data as ClientData).nickname)
+      .filter((nickname): nickname is string => Boolean(nickname));
+
+    if (socketUsers.length > 0) {
+      const users = [...new Set(socketUsers)];
+      await Promise.all(
+        users.map((nickname) =>
+          this.redisService.refreshUserInRoom(roomId, nickname),
+        ),
+      );
+      return users;
+    }
+
+    return this.redisService.getRoomUsers(roomId);
+  }
+
+  private getClientBaseSessionKey(client: Socket): string {
+    // IP real del cliente cuando pasa por nginx; fallback a address de Socket.IO.
+    const forwardedFor = client.handshake.headers?.['x-forwarded-for'];
+    const ip = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : forwardedFor?.split(',')[0];
+    return `ip:${ip?.trim() || client.handshake.address}`;
+  }
+
+  private getClientSessionKey(client: Socket): string {
+    // Fingerprint + IP identifica mejor el dispositivo que solo localStorage.
+    const fingerprint = String(client.handshake.auth?.deviceFingerprint ?? '')
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]/g, '');
+    const baseKey = this.getClientBaseSessionKey(client);
+
+    return fingerprint ? `${baseKey}:fp:${fingerprint}` : baseKey;
+  }
+
   handleConnection(client: Socket) {
     const deviceId = String(client.handshake.auth?.deviceId ?? '');
+    const sessionKey = this.getClientSessionKey(client);
 
     if (!deviceId) {
       client.emit('error', {
@@ -156,7 +254,7 @@ export class ChatGateway
     }
 
     this.logger.log(
-      `Cliente conectado: ${client.id} desde ${client.handshake.address} con deviceId ${deviceId}`,
+      `Cliente conectado: ${client.id} desde ${client.handshake.address} con sessionKey ${sessionKey}`,
     );
   }
 
@@ -192,10 +290,13 @@ export class ChatGateway
     data: ClientData,
     options: { broadcastUserLeft: boolean },
   ) {
-    const { roomId, nickname, deviceId } = data;
+    const { roomId, nickname, deviceId, sessionLockKey } = data;
     if (!roomId || !nickname || !deviceId) return;
 
     await this.redisService.deleteSession(deviceId);
+    if (sessionLockKey && sessionLockKey !== deviceId) {
+      await this.redisService.deleteSession(sessionLockKey);
+    }
     await this.redisService.deleteGrace(deviceId);
     await this.redisService.removeUserFromRoom(roomId, nickname);
 
@@ -235,6 +336,7 @@ export class ChatGateway
     const roomId = data.roomId;
     const nickname = data.nickname;
     const deviceId = data.deviceId;
+    const sessionLockKey = data.sessionLockKey;
 
     this.clearInactivityTimer(client.id);
 
@@ -250,6 +352,9 @@ export class ChatGateway
       if (!grace) return;
 
       await this.redisService.deleteSession(deviceId);
+      if (sessionLockKey && sessionLockKey !== deviceId) {
+        await this.redisService.deleteSession(sessionLockKey);
+      }
       await this.redisService.deleteGrace(deviceId);
       await this.redisService.removeUserFromRoom(roomId, nickname);
 
@@ -258,7 +363,7 @@ export class ChatGateway
       this.logger.log(`${nickname} desconectado de sala ${roomId}`);
 
       this.cleanupTimers.delete(deviceId);
-    }, 30000);
+    }, this.disconnectGraceMs);
 
     this.cleanupTimers.set(deviceId, cleanupTimer);
   }
@@ -269,10 +374,13 @@ export class ChatGateway
     @MessageBody() payload: JoinRoomPayload,
   ) {
     const ip = client.handshake.address;
-    const deviceId = String(client.handshake.auth?.deviceId ?? '');
+    const deviceId = this.getClientSessionKey(client);
+    const sessionLockKey = this.getClientBaseSessionKey(client);
+    // El deviceId de localStorage sigue siendo requerido para saber que es un cliente web valido.
+    const browserDeviceId = String(client.handshake.auth?.deviceId ?? '');
     const { roomId, pin, nickname } = payload;
 
-    if (!deviceId) {
+    if (!browserDeviceId) {
       client.emit('error', {
         code: 'MISSING_DEVICE_ID',
         message: 'Falta deviceId en el handshake',
@@ -282,6 +390,7 @@ export class ChatGateway
 
     const grace = await this.redisService.getGrace(deviceId);
     if (grace && grace.roomId === roomId && grace.nickname === nickname) {
+      // Reconexion rapida tras refresh/cierre accidental: conserva la misma sesion.
       this.clearCleanupTimer(deviceId);
       await this.redisService.deleteGrace(deviceId);
 
@@ -289,9 +398,18 @@ export class ChatGateway
 
       await client.join(roomId);
       await this.redisService.setSession(deviceId, roomId, nickname);
+      if (sessionLockKey !== deviceId) {
+        await this.redisService.setSession(sessionLockKey, roomId, nickname);
+      }
       await this.redisService.addUserToRoom(roomId, nickname);
 
-      const clientData: ClientData = { roomId, nickname, ip, deviceId };
+      const clientData: ClientData = {
+        roomId,
+        nickname,
+        ip,
+        deviceId,
+        sessionLockKey,
+      };
       client.data = clientData;
 
       this.startInactivityTimer(client, deviceId);
@@ -325,12 +443,15 @@ export class ChatGateway
       return;
     }
 
-    // 1. Verificar sesión única por deviceId
-    const existingSession = await this.redisService.getSession(deviceId);
-    if (existingSession && existingSession.roomId !== roomId) {
+    // 1. Verificar sesión única por origen del cliente. Esto evita que el
+    // mismo equipo abra otra sesión desde otro navegador.
+    const existingSession =
+      (await this.redisService.getSession(deviceId)) ??
+      (await this.redisService.getSession(sessionLockKey));
+    if (existingSession) {
       client.emit('error', {
         code: 'ALREADY_IN_ROOM',
-        message: 'Ya estás conectado en otra sala',
+        message: 'Ya tienes una sesión abierta en este dispositivo',
       });
       return;
     }
@@ -362,11 +483,21 @@ export class ChatGateway
 
     // 4. Unirse a la sala
     await client.join(roomId);
+    // Guarda la sesion especifica y el lock base para bloquear otro navegador del mismo equipo.
     await this.redisService.setSession(deviceId, roomId, nickname);
+    if (sessionLockKey !== deviceId) {
+      await this.redisService.setSession(sessionLockKey, roomId, nickname);
+    }
     await this.redisService.addUserToRoom(roomId, nickname);
 
     // 5. Guardar datos en el socket
-    const clientData: ClientData = { roomId, nickname, ip, deviceId };
+    const clientData: ClientData = {
+      roomId,
+      nickname,
+      ip,
+      deviceId,
+      sessionLockKey,
+    };
     client.data = clientData;
 
     this.startInactivityTimer(client, deviceId);
@@ -428,16 +559,19 @@ export class ChatGateway
       return;
     }
 
-    const content = payload.content.trim();
-    const participants = await this.redisService.getRoomUsers(roomId);
-
-    // Encriptar contenido para almacenar en MongoDB (protegido contra acceso directo a la DB)
-    const encryptedContent = this.encryptionService.encrypt(content);
-
     if (deviceId) {
       this.clearInactivityTimer(client.id);
       this.startInactivityTimer(client, deviceId);
     }
+
+    await this.touchClientPresence(data);
+
+    const content = payload.content.trim();
+    // El contador de vistos nace con todos los usuarios conectados en este instante.
+    const participants = await this.getActiveRoomUsers(roomId);
+
+    // Encriptar contenido para almacenar en MongoDB (protegido contra acceso directo a la DB)
+    const encryptedContent = this.encryptionService.encrypt(content);
 
     const message = {
       roomId,
@@ -506,6 +640,7 @@ export class ChatGateway
       this.clearInactivityTimer(client.id);
       this.startInactivityTimer(client, deviceId);
     }
+    await this.touchClientPresence(data);
 
     const message = await this.messageModel.findOne({
       roomId,
@@ -572,6 +707,7 @@ export class ChatGateway
       this.clearInactivityTimer(client.id);
       this.startInactivityTimer(client, deviceId);
     }
+    await this.touchClientPresence(data);
 
     const messages = await this.messageModel
       .find({
@@ -579,19 +715,40 @@ export class ChatGateway
         _id: { $in: messageIds },
       })
       .exec();
+    // Recalcula participantes con sockets vivos para evitar contadores 1/2, 2/3, etc. desfasados.
+    const activeParticipants = await this.getActiveRoomUsers(roomId);
 
     for (const message of messages) {
       const currentSeenBy = Array.isArray(message.seenBy) ? message.seenBy : [];
+      const currentParticipants = Array.isArray(message.participants)
+        ? message.participants
+        : [];
+      // seenBy dice quien ya vio; participants dice contra cuantos se compara el contador.
       const nextSeenBy = [...new Set([...currentSeenBy, nickname])];
+      const nextParticipants = [
+        ...new Set([
+          ...currentParticipants,
+          ...activeParticipants,
+          message.nickname,
+          nickname,
+        ]),
+      ];
 
-      if (nextSeenBy.length === currentSeenBy.length) continue;
+      if (
+        nextSeenBy.length === currentSeenBy.length &&
+        nextParticipants.length === currentParticipants.length
+      ) {
+        continue;
+      }
 
       message.seenBy = nextSeenBy;
+      message.participants = nextParticipants;
       await message.save();
 
       this.server.to(roomId).emit('message-seen-updated', {
         messageId: String(message._id),
         seenBy: nextSeenBy,
+        participants: nextParticipants,
       } satisfies MessageSeenUpdatedPayload);
     }
   }
@@ -628,6 +785,7 @@ export class ChatGateway
     const data: ClientData = client.data as ClientData;
     const roomId = data.roomId ?? '';
     const nickname = data.nickname ?? '';
+    const deviceId = data.deviceId ?? '';
 
     if (!roomId || !nickname) {
       client.emit('error', {
@@ -636,6 +794,12 @@ export class ChatGateway
       });
       return;
     }
+
+    if (deviceId) {
+      this.clearInactivityTimer(client.id);
+      this.startInactivityTimer(client, deviceId);
+    }
+    await this.touchClientPresence(data);
 
     const messageId = payload.messageId?.trim();
     if (!messageId) {

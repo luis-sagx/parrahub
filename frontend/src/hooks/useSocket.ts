@@ -147,9 +147,28 @@ export function useSocket() {
       setConnected(true)
     }
 
-    const handleDisconnect = () => {
+    const redirectAfterSessionClosed = (message: string) => {
+      const storedSession = getChatSession()
+      const roomId = storedSession?.roomId ?? window.location.pathname.split('/').pop()
+
+      clearChatSession()
+      clearRoom()
+
+      if (roomId) {
+        navigate(`/join/${roomId}`, { replace: true })
+      }
+
+      setJoinError(`Sesión cerrada: ${message}`)
+      pendingSession = null
+    }
+
+    const handleDisconnect = (reason?: string) => {
       // La desconexion no borra todo aqui; clearRoom se hace al salir explicitamente.
       setConnected(false)
+
+      if (reason === 'io server disconnect' && getChatSession()) {
+        redirectAfterSessionClosed('Desconectado por inactividad')
+      }
     }
 
     const handleJoinSuccess = (payload: JoinSuccessPayload) => {
@@ -253,16 +272,7 @@ export function useSocket() {
 
     const handleKicked = (data: { reason: string; message: string }) => {
       // El usuario fue desconectado por inactividad o por otra razón.
-      clearChatSession()
-      clearRoom()
-
-      // Muestra notificación y navega al formulario de unirse
-      const roomId = window.location.pathname.split('/').pop()
-      if (roomId) {
-        navigate(`/join/${roomId}`, { replace: true })
-      }
-
-      setJoinError(`Sesión cerrada: ${data.message}`)
+      redirectAfterSessionClosed(data.message)
       socket.disconnect()
     }
 

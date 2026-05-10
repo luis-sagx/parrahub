@@ -28,6 +28,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   );
 
   onModuleInit() {
+    this.getRedisClient();
+  }
+
+  private getRedisClient(): Redis {
+    if (this.client) {
+      return this.client;
+    }
+
     this.client = new Redis({
       host: process.env.REDIS_HOST || 'localhost',
       port: parseInt(process.env.REDIS_PORT || '6379'),
@@ -36,10 +44,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
     this.client.on('connect', () => this.logger.log('Redis conectado'));
     this.client.on('error', (err) => this.logger.error('Redis error:', err));
+
+    return this.client;
   }
 
   async onModuleDestroy() {
-    await this.client.quit();
+    if (this.client) {
+      await this.client.quit();
+    }
   }
 
   // Sesiones por deviceId
@@ -153,7 +165,44 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  async clearPresenceState(): Promise<number> {
+    this.getRedisClient();
+
+    const keys = await this.scanKeys(['session:*', 'grace:*', 'room-users:*']);
+
+    if (keys.length === 0) {
+      return 0;
+    }
+
+    await this.client.del(...keys);
+    return keys.length;
+  }
+
+  private async scanKeys(patterns: string[]): Promise<string[]> {
+    const keys = new Set<string>();
+    const client = this.getRedisClient();
+
+    for (const pattern of patterns) {
+      let cursor = '0';
+
+      do {
+        const [nextCursor, batch] = await client.scan(
+          cursor,
+          'MATCH',
+          pattern,
+          'COUNT',
+          100,
+        );
+
+        cursor = nextCursor;
+        batch.forEach((key) => keys.add(key));
+      } while (cursor !== '0');
+    }
+
+    return [...keys];
+  }
+
   getClient(): Redis {
-    return this.client;
+    return this.getRedisClient();
   }
 }

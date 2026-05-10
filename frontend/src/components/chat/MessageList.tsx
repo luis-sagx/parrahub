@@ -75,6 +75,7 @@ export default function MessageList() {
       if (document.visibilityState !== 'visible') return
 
       const pendingSeenIds = messages
+        .filter((message) => message.type !== 'system')
         .filter((message) => message.nickname !== nickname)
         .filter((message) => !getSeenBy(message).includes(nickname))
         .map((message) => message.id)

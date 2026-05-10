@@ -4,7 +4,7 @@ import { getDeviceFingerprint } from '@/lib/deviceFingerprint'
 
 const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001'
 
-function getDeviceId(): string {
+export function getDeviceId(): string {
   let id = localStorage.getItem('chat_device_id')
   if (!id) {
     id = uuidv4()

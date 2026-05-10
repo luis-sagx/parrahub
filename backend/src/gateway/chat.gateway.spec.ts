@@ -20,6 +20,7 @@ describe('ChatGateway', () => {
     refreshUserInRoom: jest.fn().mockResolvedValue(undefined),
     removeUserFromRoom: jest.fn().mockResolvedValue(undefined),
     clearRoomUsers: jest.fn().mockResolvedValue(undefined),
+    clearPresenceState: jest.fn().mockResolvedValue(0),
     hasNicknameInRoom: jest.fn().mockResolvedValue(false),
     getClient: jest.fn().mockReturnValue({
       publish: jest.fn(),
@@ -61,6 +62,7 @@ describe('ChatGateway', () => {
     gateway['server'] = {
       to: jest.fn().mockReturnThis(),
       emit: jest.fn(),
+      sockets: new Map(),
     } as any;
 
     jest.clearAllMocks();
@@ -162,21 +164,59 @@ describe('ChatGateway', () => {
   });
 
   describe('handleDisconnect', () => {
-    it('should do nothing without room data', () => {
+    it('should do nothing without room data', async () => {
       const client = { data: {} } as unknown as Socket;
-      gateway.handleDisconnect(client);
+      await gateway.handleDisconnect(client);
       expect(mockRedisService.deleteSession).not.toHaveBeenCalled();
     });
 
-    it('should handle when room data exists', () => {
+    it('should schedule fast cleanup when room data exists', async () => {
       const mockClient = {
         id: 'socket-1',
         data: { roomId: 'room-1', nickname: 'user1', deviceId: 'device-123' },
       } as unknown as Socket;
+      mockRedisService.getGrace.mockResolvedValue({
+        roomId: 'room-1',
+        nickname: 'user1',
+      });
+      mockRedisService.getRoomUsers.mockResolvedValue(['user2']);
 
-      gateway.handleDisconnect(mockClient);
+      await gateway.handleDisconnect(mockClient);
 
-      expect(mockClient.data).toBeDefined();
+      expect(mockRedisService.setGrace).toHaveBeenCalledWith('device-123', {
+        roomId: 'room-1',
+        nickname: 'user1',
+      });
+
+      await jest.advanceTimersByTimeAsync(gateway['disconnectGraceMs']);
+
+      expect(mockRedisService.deleteSession).toHaveBeenCalledWith('device-123');
+      expect(mockRedisService.removeUserFromRoom).toHaveBeenCalledWith('room-1', 'user1');
+      expect(gateway['server'].to).toHaveBeenCalledWith('room-1');
+    });
+
+    it('should not remove user if same device reconnected before cleanup', async () => {
+      const oldClient = {
+        id: 'socket-old',
+        data: { roomId: 'room-1', nickname: 'user1', deviceId: 'device-123' },
+      } as unknown as Socket;
+      const newClient = {
+        id: 'socket-new',
+        data: { roomId: 'room-1', nickname: 'user1', deviceId: 'device-123' },
+      } as unknown as Socket;
+
+      (gateway['server'] as any).sockets.set('socket-new', newClient);
+      mockRedisService.getGrace.mockResolvedValue({
+        roomId: 'room-1',
+        nickname: 'user1',
+      });
+
+      await gateway.handleDisconnect(oldClient);
+      await jest.advanceTimersByTimeAsync(gateway['disconnectGraceMs']);
+
+      expect(mockRedisService.deleteGrace).toHaveBeenCalledWith('device-123');
+      expect(mockRedisService.deleteSession).not.toHaveBeenCalledWith('device-123');
+      expect(mockRedisService.removeUserFromRoom).not.toHaveBeenCalledWith('room-1', 'user1');
     });
   });
 
@@ -243,11 +283,93 @@ describe('ChatGateway', () => {
     });
   });
 
+  describe('disconnectDeviceFromRoom', () => {
+    it('should cleanup a matching device session and disconnect active sockets', async () => {
+      const matchingClient = {
+        id: 'socket-1',
+        data: { roomId: 'room-1', nickname: 'user1', deviceId: 'device-123' },
+        leave: jest.fn().mockResolvedValue(undefined),
+        disconnect: jest.fn(),
+      } as unknown as Socket;
+
+      (gateway['server'] as any).sockets.set('socket-1', matchingClient);
+      mockRedisService.getSession.mockResolvedValue({
+        roomId: 'room-1',
+        nickname: 'user1',
+        joinedAt: Date.now(),
+      });
+      mockRedisService.getRoomUsers.mockResolvedValue(['user2']);
+
+      const result = await gateway.disconnectDeviceFromRoom({
+        deviceId: 'device-123',
+        roomId: 'room-1',
+        nickname: 'user1',
+      });
+
+      expect(result).toBe(true);
+      expect(mockRedisService.deleteSession).toHaveBeenCalledWith('device-123');
+      expect(mockRedisService.deleteGrace).toHaveBeenCalledWith('device-123');
+      expect(mockRedisService.removeUserFromRoom).toHaveBeenCalledWith('room-1', 'user1');
+      expect(matchingClient.leave).toHaveBeenCalledWith('room-1');
+      expect(matchingClient.disconnect).toHaveBeenCalledWith(true);
+      expect((matchingClient.data as any).cleanedUp).toBe(true);
+      expect(gateway['server'].to).toHaveBeenCalledWith('room-1');
+    });
+
+    it('should ignore disconnect beacons that do not match the stored session', async () => {
+      mockRedisService.getSession.mockResolvedValue({
+        roomId: 'room-other',
+        nickname: 'user1',
+        joinedAt: Date.now(),
+      });
+
+      const result = await gateway.disconnectDeviceFromRoom({
+        deviceId: 'device-123',
+        roomId: 'room-1',
+        nickname: 'user1',
+      });
+
+      expect(result).toBe(false);
+      expect(mockRedisService.deleteSession).not.toHaveBeenCalled();
+      expect(mockRedisService.removeUserFromRoom).not.toHaveBeenCalled();
+    });
+  });
+
   describe('startInactivityTimer', () => {
     it('should set a timer', () => {
       const client = { id: 'socket-1' } as unknown as Socket;
       gateway['startInactivityTimer'](client, 'device-123');
       expect(gateway['inactivityTimers'].has('socket-1')).toBe(true);
+    });
+
+    it('should kick, cleanup, and then disconnect after inactivity', async () => {
+      const client = {
+        id: 'socket-1',
+        data: { roomId: 'room-1', nickname: 'user1', deviceId: 'device-123' },
+        emit: jest.fn(),
+        disconnect: jest.fn(),
+      } as unknown as Socket;
+      mockRedisService.getRoomUsers.mockResolvedValue(['user2']);
+
+      gateway['startInactivityTimer'](client, 'device-123');
+      await jest.advanceTimersByTimeAsync(gateway['inactivityTimeoutMs']);
+
+      expect(client.emit).toHaveBeenCalledWith('kicked', {
+        reason: 'INACTIVITY',
+        message: 'Desconectado por inactividad',
+      });
+      expect(mockRedisService.deleteSession).toHaveBeenCalledWith('device-123');
+      expect(mockRedisService.removeUserFromRoom).toHaveBeenCalledWith(
+        'room-1',
+        'user1',
+      );
+      expect(client.disconnect).not.toHaveBeenCalled();
+
+      await jest.advanceTimersByTimeAsync(
+        gateway['inactivityDisconnectDelayMs'],
+      );
+
+      expect(client.disconnect).toHaveBeenCalledWith(true);
     });
   });
 
@@ -270,7 +392,19 @@ describe('ChatGateway', () => {
 
   describe('inactivityTimeoutMs', () => {
     it('should have default timeout value', () => {
-      expect(gateway['inactivityTimeoutMs']).toBe(1800000);
+      expect(gateway['inactivityTimeoutMs']).toBe(60000);
+    });
+  });
+
+  describe('inactivityDisconnectDelayMs', () => {
+    it('should have default inactivity disconnect delay value', () => {
+      expect(gateway['inactivityDisconnectDelayMs']).toBe(300);
+    });
+  });
+
+  describe('disconnectGraceMs', () => {
+    it('should have default disconnect grace value', () => {
+      expect(gateway['disconnectGraceMs']).toBe(1500);
     });
   });
 
@@ -349,6 +483,47 @@ describe('ChatGateway', () => {
         code: 'NICKNAME_TAKEN',
         message: 'Este nickname ya está en uso en la sala',
       });
+    });
+
+    it('should reconnect when same device joins same room with same nickname', async () => {
+      const client = {
+        id: 'socket-1',
+        handshake: { address: '127.0.0.1', auth: { deviceId: 'device-123' } },
+        emit: jest.fn(),
+        join: jest.fn().mockResolvedValue(undefined),
+        data: null as any,
+      } as unknown as Socket;
+
+      mockRedisService.getGrace.mockResolvedValue(null);
+      mockRedisService.getSession.mockResolvedValue({
+        roomId: 'room-1',
+        nickname: 'user1',
+      });
+      mockRoomsService.findOne.mockResolvedValue({ id: 'room-1', name: 'Test Room', type: 'TEXT' });
+      mockMessageModel.find.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      });
+      mockRedisService.getRoomUsers.mockResolvedValue(['user1']);
+
+      await gateway.handleJoinRoom(client, {
+        roomId: 'room-1',
+        pin: '1234',
+        nickname: 'user1',
+      });
+
+      expect(client.emit).toHaveBeenCalledWith(
+        'join-success',
+        expect.objectContaining({
+          roomId: 'room-1',
+          nickname: 'user1',
+          reconnected: true,
+        }),
+      );
+      expect(mockRedisService.hasNicknameInRoom).not.toHaveBeenCalled();
+      expect(mockRoomsService.validatePin).not.toHaveBeenCalled();
     });
   });
 
@@ -460,6 +635,25 @@ describe('ChatGateway', () => {
       await gateway.handleMarkMessagesSeen(client, { messageIds: ['msg-1'] });
 
       expect(client.emit).not.toHaveBeenCalledWith('error');
+    });
+
+    it('should ignore non Mongo ObjectId message ids', async () => {
+      const client = {
+        id: 'socket-1',
+        data: { roomId: 'room-1', nickname: 'user1', deviceId: 'device-123' },
+        emit: jest.fn(),
+      } as unknown as Socket;
+
+      await gateway.handleMarkMessagesSeen(client, {
+        messageIds: ['system-left-user-123'],
+      });
+
+      expect(mockMessageModel.find).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          _id: expect.anything(),
+        }),
+      );
+      expect(gateway['inactivityTimers'].has('socket-1')).toBe(false);
     });
   });
 

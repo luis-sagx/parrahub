@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/sheet'
 import { useSocket } from '@/hooks/useSocket'
 import { clearChatSession, getChatSession } from '@/lib/chatSession'
+import { getDeviceId } from '@/lib/socket'
 import { useChatStore } from '@/store/chatStore'
 
 export default function ChatRoom() {
@@ -30,17 +31,54 @@ export default function ChatRoom() {
   )
 
   useEffect(() => {
-    // Al cerrar o recargar la pestana se avisa al socket para limpiar la presencia.
-    const handleBeforeUnload = () => {
+    let notified = false
+
+    // pagehide/beforeunload cubren cierre, recarga y navegadores moviles.
+    // La reconexion en recarga se conserva porque la sesion local mantiene el PIN.
+    const notifyTabClosed = () => {
+      if (notified || !roomId) return
+
+      const session = getChatSession()
+      if (!session || session.roomId !== roomId) return
+
+      notified = true
+
+      const apiUrl = (
+        import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+      ).replace(/\/$/, '')
+      const body = new URLSearchParams({
+        deviceId: getDeviceId(),
+        roomId: session.roomId,
+        nickname: session.nickname,
+      })
+
+      if (navigator.sendBeacon?.(`${apiUrl}/chat/disconnect`, body)) {
+        return
+      }
+
+      void fetch(`${apiUrl}/chat/disconnect`, {
+        method: 'POST',
+        body,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        },
+        keepalive: true,
+      }).catch(() => undefined)
+    }
+
+    const handleTabClose = () => {
+      notifyTabClosed()
       disconnect(false)
     }
 
-    window.addEventListener('beforeunload', handleBeforeUnload)
+    window.addEventListener('pagehide', handleTabClose)
+    window.addEventListener('beforeunload', handleTabClose)
 
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('pagehide', handleTabClose)
+      window.removeEventListener('beforeunload', handleTabClose)
     }
-  }, [disconnect])
+  }, [disconnect, roomId])
 
   useEffect(() => {
     if (!roomId) return

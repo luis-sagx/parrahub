@@ -12,8 +12,18 @@ async function bootstrap() {
 
   // Seguridad
   app.use(helmet());
+  const configuredOrigins = (process.env.FRONTEND_URL || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const devOrigins =
+    process.env.NODE_ENV === 'production'
+      ? []
+      : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:8085'];
+  const allowedOrigins = [...new Set([...configuredOrigins, ...devOrigins])];
+
   app.enableCors({
-    origin: process.env.FRONTEND_URL || '*',
+    origin: allowedOrigins.length > 0 ? allowedOrigins : true,
     credentials: true,
   });
 

@@ -68,7 +68,14 @@ interface LeaveRoomAck {
   ok: boolean;
 }
 
+interface DisconnectDevicePayload {
+  deviceId: string;
+  roomId: string;
+  nickname: string;
+}
+
 const ALLOWED_MESSAGE_REACTIONS = new Set(['👍', '❤️', '😂', '😮', '😢', '🙏']);
+const MONGO_OBJECT_ID_PATTERN = /^[a-f\d]{24}$/i;
 
 @WebSocketGateway({
   cors: { origin: '*', credentials: true },
@@ -78,22 +85,21 @@ const ALLOWED_MESSAGE_REACTIONS = new Set(['👍', '❤️', '😂', '😮', '�
   pingTimeout: 5000,
 })
 export class ChatGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
-{
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
   @WebSocketServer()
   server!: Server;
 
   private readonly logger = new Logger(ChatGateway.name);
   private readonly inactivityTimeoutMs = parseInt(
-    process.env.INACTIVITY_TIMEOUT_MS || '1800000',
-    10,
-  );
-  private readonly presenceHeartbeatMs = parseInt(
-    process.env.PRESENCE_HEARTBEAT_MS || '5000',
+    process.env.INACTIVITY_TIMEOUT_MS || '60000',
     10,
   );
   private readonly disconnectGraceMs = parseInt(
-    process.env.DISCONNECT_GRACE_MS || '5000',
+    process.env.DISCONNECT_GRACE_MS || '1500',
+    10,
+  );
+  private readonly inactivityDisconnectDelayMs = parseInt(
+    process.env.INACTIVITY_DISCONNECT_DELAY_MS || '300',
     10,
   );
   private inactivityTimers = new Map<string, NodeJS.Timeout>();
@@ -105,11 +111,22 @@ export class ChatGateway
     private readonly roomsService: RoomsService,
     private readonly encryptionService: EncryptionService,
     @InjectModel('Message') private readonly messageModel: Model<Message>,
-  ) {}
+  ) { }
 
   async afterInit(server: Server) {
     this.server = server;
-    this.startPresenceHeartbeat();
+
+    try {
+      const clearedKeys = await this.redisService.clearPresenceState();
+
+      if (clearedKeys > 0) {
+        this.logger.log(
+          `Presencia previa limpiada al iniciar gateway (${clearedKeys} claves)`,
+        );
+      }
+    } catch (err) {
+      this.logger.warn('No se pudo limpiar la presencia inicial en Redis', err);
+    }
 
     try {
       // Create a Redis client for worker event subscriptions
@@ -285,6 +302,92 @@ export class ChatGateway
     this.cleanupTimers.delete(deviceId);
   }
 
+  private getConnectedClients() {
+    const sockets = (this.server as unknown as {
+      sockets?:
+      | Map<string, Socket>
+      | {
+        sockets?: Map<string, Socket>;
+      };
+    }).sockets;
+
+    if (sockets instanceof Map) {
+      return Array.from(sockets.values());
+    }
+
+    return Array.from(sockets?.sockets?.values() ?? []);
+  }
+
+  private hasReplacementClient(
+    deviceId: string,
+    roomId: string,
+    nickname: string,
+    excludedSocketId: string,
+  ) {
+    return this.getConnectedClients().some((client) => {
+      const data = client.data as ClientData;
+
+      return (
+        client.id !== excludedSocketId &&
+        data?.deviceId === deviceId &&
+        data?.roomId === roomId &&
+        data?.nickname === nickname
+      );
+    });
+  }
+
+  private async emitJoinSuccess(
+    client: Socket,
+    payload: JoinRoomPayload,
+    clientData: ClientData,
+    options: { reconnected: boolean },
+  ) {
+    const { roomId, nickname } = payload;
+
+    const room = await this.roomsService.findOne(roomId);
+
+    await client.join(roomId);
+    await this.redisService.setSession(
+      clientData.deviceId ?? '',
+      roomId,
+      nickname,
+    );
+    await this.redisService.addUserToRoom(roomId, nickname);
+
+    client.data = clientData;
+
+    if (clientData.deviceId) {
+      this.startInactivityTimer(client, clientData.deviceId);
+    }
+
+    const history = await this.messageModel
+      .find({ roomId })
+      .sort({ timestamp: -1 })
+      .limit(50)
+      .lean()
+      .exec();
+
+    const users = await this.redisService.getRoomUsers(roomId);
+
+    client.emit('join-success', {
+      roomId,
+      nickname,
+      room,
+      history: history
+        .reverse()
+        .map((message) =>
+          this.normalizeStoredMessage({
+            ...message,
+            content: this.encryptionService.decrypt(message.content as string),
+          } as unknown as Record<string, unknown>),
+        ),
+      users,
+      ...(options.reconnected ? { reconnected: true } : {}),
+    } satisfies JoinSuccessPayload);
+
+    return users;
+  }
+
   private async cleanupSocketSession(
     client: Socket,
     data: ClientData,
@@ -309,23 +412,79 @@ export class ChatGateway
     this.logger.log(`${nickname} desconectado de sala ${roomId}`);
   }
 
+  async disconnectDeviceFromRoom(
+    payload: DisconnectDevicePayload,
+  ): Promise<boolean> {
+    const deviceId = payload.deviceId?.trim();
+    const roomId = payload.roomId?.trim();
+    const nickname = payload.nickname?.trim();
+
+    if (!deviceId || !roomId || !nickname) return false;
+
+    const session = await this.redisService.getSession(deviceId);
+    if (
+      !session ||
+      session.roomId !== roomId ||
+      session.nickname !== nickname
+    ) {
+      return false;
+    }
+
+    this.clearCleanupTimer(deviceId);
+    await this.redisService.deleteSession(deviceId);
+    await this.redisService.deleteGrace(deviceId);
+    await this.redisService.removeUserFromRoom(roomId, nickname);
+
+    const matchingClients = this.getConnectedClients().filter((client) => {
+      const data = client.data as ClientData;
+
+      return (
+        data?.deviceId === deviceId &&
+        data?.roomId === roomId &&
+        data?.nickname === nickname
+      );
+    });
+
+    for (const client of matchingClients) {
+      const data = client.data as ClientData;
+      this.clearInactivityTimer(client.id);
+      client.data = { ...data, cleanedUp: true };
+
+      await Promise.resolve(client.leave(roomId));
+      client.disconnect(true);
+    }
+
+    const users = await this.redisService.getRoomUsers(roomId);
+    this.server.to(roomId).emit('user-left', { nickname, users });
+    this.logger.log(`${nickname} desconectado de sala ${roomId}`);
+
+    return true;
+  }
+
   private startInactivityTimer(client: Socket, deviceId: string) {
     this.clearInactivityTimer(client.id);
 
     const timer = setTimeout(async () => {
       const data = client.data as ClientData;
 
-      client.emit('kicked', {
-        reason: 'INACTIVITY',
-        message: 'Desconectado por inactividad',
-      });
+      try {
+        client.emit('kicked', {
+          reason: 'INACTIVITY',
+          message: 'Desconectado por inactividad',
+        });
 
-      await this.cleanupSocketSession(client, data, {
-        broadcastUserLeft: true,
-      });
+        await this.cleanupSocketSession(client, data, {
+          broadcastUserLeft: true,
+        });
+      } finally {
+        this.clearInactivityTimer(client.id);
 
-      this.clearInactivityTimer(client.id);
-      client.disconnect(true);
+        const disconnectTimer = setTimeout(() => {
+          client.disconnect(true);
+        }, this.inactivityDisconnectDelayMs);
+
+        disconnectTimer.unref?.();
+      }
     }, this.inactivityTimeoutMs);
 
     this.inactivityTimers.set(client.id, timer);
@@ -350,6 +509,12 @@ export class ChatGateway
     const cleanupTimer = setTimeout(async () => {
       const grace = await this.redisService.getGrace(deviceId);
       if (!grace) return;
+
+      if (this.hasReplacementClient(deviceId, roomId, nickname, client.id)) {
+        await this.redisService.deleteGrace(deviceId);
+        this.cleanupTimers.delete(deviceId);
+        return;
+      }
 
       await this.redisService.deleteSession(deviceId);
       if (sessionLockKey && sessionLockKey !== deviceId) {
@@ -394,60 +559,42 @@ export class ChatGateway
       this.clearCleanupTimer(deviceId);
       await this.redisService.deleteGrace(deviceId);
 
-      const room = await this.roomsService.findOne(roomId);
-
-      await client.join(roomId);
-      await this.redisService.setSession(deviceId, roomId, nickname);
-      if (sessionLockKey !== deviceId) {
-        await this.redisService.setSession(sessionLockKey, roomId, nickname);
-      }
-      await this.redisService.addUserToRoom(roomId, nickname);
-
-      const clientData: ClientData = {
-        roomId,
-        nickname,
-        ip,
-        deviceId,
-        sessionLockKey,
-      };
-      client.data = clientData;
-
-      this.startInactivityTimer(client, deviceId);
-
-      const history = await this.messageModel
-        .find({ roomId })
-        .sort({ timestamp: -1 })
-        .limit(50)
-        .lean()
-        .exec();
-
-      const users = await this.redisService.getRoomUsers(roomId);
-
-      client.emit('join-success', {
-        roomId,
-        nickname,
-        room,
-        history: history
-          .reverse()
-          .map((message) =>
-            this.normalizeStoredMessage({
-              ...message,
-              content: this.encryptionService.decrypt(message.content as string),
-            } as unknown as Record<string, unknown>),
-          ),
-        users,
-        reconnected: true,
-      } satisfies JoinSuccessPayload);
+      await this.emitJoinSuccess(
+        client,
+        payload,
+        { roomId, nickname, ip, deviceId },
+        { reconnected: true },
+      );
 
       this.logger.log(`${nickname} se reconectó a sala ${roomId}`);
       return;
     }
 
-    // 1. Verificar sesión única por origen del cliente. Esto evita que el
-    // mismo equipo abra otra sesión desde otro navegador.
-    const existingSession =
-      (await this.redisService.getSession(deviceId)) ??
-      (await this.redisService.getSession(sessionLockKey));
+    // 1. Verificar sesión única por deviceId
+    const existingSession = await this.redisService.getSession(deviceId);
+    if (existingSession?.roomId === roomId) {
+      if (existingSession.nickname !== nickname) {
+        client.emit('error', {
+          code: 'ALREADY_IN_ROOM',
+          message: 'Ya estás conectado en esta sala con otro nickname',
+        });
+        return;
+      }
+
+      this.clearCleanupTimer(deviceId);
+      await this.redisService.deleteGrace(deviceId);
+
+      await this.emitJoinSuccess(
+        client,
+        payload,
+        { roomId, nickname, ip, deviceId },
+        { reconnected: true },
+      );
+
+      this.logger.log(`${nickname} se reconectó a sala ${roomId}`);
+      return;
+    }
+
     if (existingSession) {
       client.emit('error', {
         code: 'ALREADY_IN_ROOM',
@@ -466,8 +613,6 @@ export class ChatGateway
       return;
     }
 
-    const room = await this.roomsService.findOne(roomId);
-
     // 3. Validar nickname único en la sala
     const nicknameExists = await this.redisService.hasNicknameInRoom(
       roomId,
@@ -481,52 +626,15 @@ export class ChatGateway
       return;
     }
 
-    // 4. Unirse a la sala
-    await client.join(roomId);
-    // Guarda la sesion especifica y el lock base para bloquear otro navegador del mismo equipo.
-    await this.redisService.setSession(deviceId, roomId, nickname);
-    if (sessionLockKey !== deviceId) {
-      await this.redisService.setSession(sessionLockKey, roomId, nickname);
-    }
-    await this.redisService.addUserToRoom(roomId, nickname);
+    // 4. Unirse a la sala, guardar sesión y cargar historial.
+    const users = await this.emitJoinSuccess(
+      client,
+      payload,
+      { roomId, nickname, ip, deviceId },
+      { reconnected: false },
+    );
 
-    // 5. Guardar datos en el socket
-    const clientData: ClientData = {
-      roomId,
-      nickname,
-      ip,
-      deviceId,
-      sessionLockKey,
-    };
-    client.data = clientData;
-
-    this.startInactivityTimer(client, deviceId);
-
-    // 6. Cargar historial de mensajes
-    const history = await this.messageModel
-      .find({ roomId })
-      .sort({ timestamp: -1 })
-      .limit(50)
-      .lean()
-      .exec();
-
-    const users = await this.redisService.getRoomUsers(roomId);
-
-    // 7. Notificar
-    client.emit('join-success', {
-      roomId,
-      nickname,
-      room,
-      history: history
-        .reverse()
-        .map((message) =>
-          this.normalizeStoredMessage({
-            ...message,
-            content: this.encryptionService.decrypt(message.content as string),
-          } as unknown as Record<string, unknown>),
-        ),
-      users,
-    } satisfies JoinSuccessPayload);
+    // 5. Notificar presencia.
     this.server.to(roomId).emit('user-joined', { nickname, users });
 
     this.logger.log(`${nickname} se unió a sala ${roomId}`);
@@ -690,7 +798,13 @@ export class ChatGateway
     const nickname = data.nickname ?? '';
     const deviceId = data.deviceId ?? '';
     const messageIds = Array.isArray(payload?.messageIds)
-      ? [...new Set(payload.messageIds.map((id) => String(id).trim()).filter(Boolean))]
+      ? [
+        ...new Set(
+          payload.messageIds
+            .map((id) => String(id).trim())
+            .filter((id) => MONGO_OBJECT_ID_PATTERN.test(id)),
+        ),
+      ]
       : [];
 
     if (!roomId || !nickname) {

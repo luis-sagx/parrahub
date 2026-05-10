@@ -105,11 +105,11 @@ ParrHub es un sistema de chat en tiempo real que permite a los administradores c
 │                         (Web Browser - Móvil)                                    │
 └─────────────────────────────────────────────────────────────────────────────────┘
                                         │
-                                        │ HTTPS / WSS
+                                        │ HTTP / WS
                                         ▼
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                              NGINX (Reverse Proxy)                                │
-│                   Puerto 8085 │ SSL │ Enrutamiento                               │
+│                        Puerto 8085 │ HTTP │ Enrutamiento                          │
 └─────────────────────────────────────────────────────────────────────────────────┘
                     │                       │                       │
                     │ /api                  │ /socket.io            │ /

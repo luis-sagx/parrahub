@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2023",
+    "skipLibCheck": true,
+    "strict": false,
+    "declaration": false,
+    "isolatedModules": false
+  },
+  "include": ["prisma/**/*.ts"]
+}

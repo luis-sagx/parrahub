@@ -72,12 +72,11 @@ export default function MessageList() {
     if (!nickname || messages.length === 0) return
 
     const flushSeenMessages = () => {
-      if (document.visibilityState !== 'visible' || !document.hasFocus()) return
+      if (document.visibilityState !== 'visible') return
 
       const pendingSeenIds = messages
         .filter((message) => message.nickname !== nickname)
         .filter((message) => !getSeenBy(message).includes(nickname))
-        .filter((message) => visibleMessageIdsRef.current.has(message.id))
         .map((message) => message.id)
 
       if (pendingSeenIds.length === 0) return
@@ -124,7 +123,7 @@ export default function MessageList() {
 
     window.addEventListener('focus', handleFocus)
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    flushSeenMessages()
+    requestAnimationFrame(flushSeenMessages)
 
     return () => {
       observer.disconnect()
@@ -189,10 +188,12 @@ export default function MessageList() {
                     visibleMessageIdsRef.current.delete(message.id)
                   }}
                 >
-                  <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs text-[#aeb4bf]">
-                    <Info className="h-3.5 w-3.5 text-[#7170ff]" />
-                    <span>{message.content}</span>
-                    <span className="text-[#7f8590]">
+                  <div className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs text-[#aeb4bf]">
+                    <Info className="h-3.5 w-3.5 shrink-0 text-[#7170ff]" />
+                    <span className="min-w-0 [overflow-wrap:anywhere]">
+                      {message.content}
+                    </span>
+                    <span className="shrink-0 text-[#7f8590]">
                       {formatTime(message.timestamp)}
                     </span>
                   </div>
@@ -212,7 +213,7 @@ export default function MessageList() {
             return (
               <article
                 key={message.id}
-                className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                className={`flex min-w-0 ${isOwn ? 'justify-end' : 'justify-start'}`}
                 data-message-id={message.id}
                 ref={(element) => {
                   if (element) {
@@ -225,31 +226,32 @@ export default function MessageList() {
                 }}
               >
                 <div className={cn(
-                      'group flex flex-col',
-                      isOwn ? 'items-end max-w-[75%]' : 'items-start max-w-[75%]'
+                      // min-w-0 + overflow-wrap evitan que palabras largas rompan el viewport movil.
+                      'group flex min-w-0 max-w-[min(75%,calc(100vw-2rem))] flex-col',
+                      isOwn ? 'items-end' : 'items-start'
                     )}>
                   {isDeleted ? (
-                    <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2">
+                    <div className="max-w-full rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2">
                       <p className="text-xs font-medium text-[#6b6f7a] mb-1">
                         {message.nickname}
                       </p>
-                      <p className="italic text-sm leading-6 text-[#6b6f7a]">
+                      <p className="[overflow-wrap:anywhere] italic text-sm leading-6 text-[#6b6f7a]">
                         Mensaje eliminado
                       </p>
                     </div>
                   ) : (
                     <div
-                      className={`rounded-lg border px-3 py-2 ${
+                      className={`max-w-full overflow-hidden rounded-lg border px-3 py-2 ${
                         isOwn
                           ? 'border-[#5e6ad2]/30 bg-[#5e6ad2]/20'
                           : 'border-white/[0.08] bg-white/[0.035]'
                       }`}
                     >
-                      <div className="mb-1 flex items-center gap-2 text-xs text-[#8a8f98]">
-                        <span className="font-medium" style={{ color: userColor }}>
+                      <div className="mb-1 flex min-w-0 items-center gap-2 text-xs text-[#8a8f98]">
+                        <span className="min-w-0 truncate font-medium" style={{ color: userColor }}>
                           {message.nickname}
                         </span>
-                        <span>{formatTime(message.timestamp)}</span>
+                        <span className="shrink-0">{formatTime(message.timestamp)}</span>
                       </div>
 
                       {message.type === 'file' ? (
@@ -270,18 +272,20 @@ export default function MessageList() {
 
                           {!showsImagePreview && (
                             <a
-                              className="inline-flex items-center gap-2 text-sm text-[#828fff] underline-offset-4 hover:underline"
+                              className="inline-flex min-w-0 items-center gap-2 text-sm text-[#828fff] underline-offset-4 hover:underline"
                               href={message.fileUrl}
                               rel="noreferrer"
                               target="_blank"
                             >
-                              <FileText className="h-4 w-4" />
-                              {message.filename ?? 'Archivo adjunto'}
+                              <FileText className="h-4 w-4 shrink-0" />
+                              <span className="min-w-0 [overflow-wrap:anywhere]">
+                                {message.filename ?? 'Archivo adjunto'}
+                              </span>
                             </a>
                           )}
                         </div>
                       ) : (
-                        <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[#f7f8f8]">
+                        <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-6 text-[#f7f8f8]">
                           {message.content}
                         </p>
                       )}

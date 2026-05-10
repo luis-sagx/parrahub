@@ -20,7 +20,12 @@ export interface GraceData {
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
-  private client: Redis;
+  private client!: Redis;
+  // Tiempo maximo sin heartbeat antes de sacar a un usuario de la presencia.
+  private readonly roomPresenceTtlMs = parseInt(
+    process.env.ROOM_PRESENCE_TTL_MS || '30000',
+    10,
+  );
 
   onModuleInit() {
     this.client = new Redis({
@@ -101,28 +106,51 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     await this.client.del(`grace:${deviceId}`);
   }
 
-  // Usuarios por sala
+  // Mantiene compatibilidad con la lista anterior y refresca la presencia viva.
   async addUserToRoom(roomId: string, nickname: string): Promise<void> {
     await this.client.sadd(`room-users:${roomId}`, nickname);
+    await this.refreshUserInRoom(roomId, nickname);
+  }
+
+  // Sorted set: score = ultimo heartbeat. Asi se limpian pestanas cerradas.
+  async refreshUserInRoom(roomId: string, nickname: string): Promise<void> {
+    await this.client.zadd(
+      `room-presence:${roomId}`,
+      Date.now(),
+      nickname,
+    );
   }
 
   async removeUserFromRoom(roomId: string, nickname: string): Promise<void> {
     await this.client.srem(`room-users:${roomId}`, nickname);
+    await this.client.zrem(`room-presence:${roomId}`, nickname);
   }
 
   async getRoomUsers(roomId: string): Promise<string[]> {
-    const users = await this.client.smembers(`room-users:${roomId}`);
+    // Antes de responder, elimina usuarios cuyo socket ya no envio heartbeat.
+    await this.pruneInactiveRoomUsers(roomId);
+    const users = await this.client.zrange(`room-presence:${roomId}`, 0, -1);
     return users.map((user) => String(user));
   }
 
   async hasNicknameInRoom(roomId: string, nickname: string): Promise<boolean> {
-    return (
-      (await this.client.sismember(`room-users:${roomId}`, nickname)) === 1
-    );
+    await this.pruneInactiveRoomUsers(roomId);
+    const score = await this.client.zscore(`room-presence:${roomId}`, nickname);
+    return score !== null;
   }
 
   async clearRoomUsers(roomId: string): Promise<void> {
     await this.client.del(`room-users:${roomId}`);
+    await this.client.del(`room-presence:${roomId}`);
+  }
+
+  async pruneInactiveRoomUsers(roomId: string): Promise<void> {
+    // Borra entradas viejas sin depender de que el navegador envie leave-room.
+    await this.client.zremrangebyscore(
+      `room-presence:${roomId}`,
+      '-inf',
+      Date.now() - this.roomPresenceTtlMs,
+    );
   }
 
   getClient(): Redis {

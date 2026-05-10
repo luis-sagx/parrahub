@@ -21,7 +21,7 @@ interface JoinSuccessPayload {
 }
 
 interface UsersUpdatedPayload {
-  nickname: string
+  nickname?: string
   users: string[]
 }
 
@@ -47,6 +47,7 @@ interface MessageReactionsUpdatedPayload {
 interface MessageSeenUpdatedPayload {
   messageId: string
   seenBy: string[]
+  participants?: string[]
 }
 
 interface NewFilePayload {
@@ -64,7 +65,7 @@ interface NewFilePayload {
 const socketErrorMessages: Record<SocketErrorPayload['code'], string> = {
   INVALID_PIN: 'PIN incorrecto o sala no encontrada',
   NICKNAME_TAKEN: 'Ese nickname ya esta en uso',
-  ALREADY_IN_ROOM: 'Ya estas conectado en otra sala',
+  ALREADY_IN_ROOM: 'Ya tienes una sesion abierta en este dispositivo',
   NOT_IN_ROOM: 'Debes unirte a una sala primero',
   MESSAGE_TOO_LONG: 'El mensaje no puede tener mas de 1000 caracteres',
   MISSING_DEVICE_ID: 'No se pudo identificar este dispositivo',
@@ -76,6 +77,37 @@ const socketErrorMessages: Record<SocketErrorPayload['code'], string> = {
 // Evita registrar los mismos listeners muchas veces cuando varios componentes usan el hook.
 let listenersRegistered = false
 let pendingSession: StoredChatSession | null = null
+
+const emitSeenForVisibleMessages = (messages: Message[], currentNickname: string) => {
+  // Si el chat esta visible, confirma lectura al recibir mensaje/historial.
+  if (
+    !currentNickname ||
+    (typeof document !== 'undefined' && document.visibilityState !== 'visible')
+  ) {
+    return
+  }
+
+  const pendingSeenIds = messages
+    .filter((message) => message.nickname !== currentNickname)
+    .filter((message) => !(message.seenBy ?? [message.nickname]).includes(currentNickname))
+    .map((message) => message.id)
+
+  if (pendingSeenIds.length === 0) return
+
+  socket.emit('mark-messages-seen', {
+    messageIds: pendingSeenIds,
+  })
+}
+
+const scheduleSeenEmit = (callback: () => void) => {
+  // Espera un frame para que React pinte el mensaje antes de mandar el visto.
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(callback)
+    return
+  }
+
+  setTimeout(callback, 0)
+}
 
 const buildRoomFromJoin = (payload: JoinSuccessPayload): Room =>
   // Si el backend no manda la sala completa, armamos una minima para pintar la UI.
@@ -129,6 +161,9 @@ export function useSocket() {
       setJoinError(null)
       setJoining(false)
       setConnected(true)
+      scheduleSeenEmit(() => {
+        emitSeenForVisibleMessages(payload.history ?? [], payload.nickname)
+      })
 
       if (pendingSession?.roomId === payload.roomId) {
         saveChatSession({
@@ -148,6 +183,13 @@ export function useSocket() {
     const handleNewMessage = (message: Message) => {
       // Todos los mensajes, incluidos archivos procesados, llegan por este evento.
       addMessage(message)
+      // Evita depender solo del IntersectionObserver, que fallaba en algunos moviles.
+      scheduleSeenEmit(() => {
+        emitSeenForVisibleMessages(
+          [message],
+          useChatStore.getState().nickname,
+        )
+      })
     }
 
     const handleMessageReactionsUpdated = (
@@ -157,7 +199,7 @@ export function useSocket() {
     }
 
     const handleMessageSeenUpdated = (payload: MessageSeenUpdatedPayload) => {
-      updateMessageSeenBy(payload.messageId, payload.seenBy)
+      updateMessageSeenBy(payload.messageId, payload.seenBy, payload.participants)
     }
 
     interface MessageDeletedPayload {
@@ -173,7 +215,7 @@ export function useSocket() {
       // El backend manda la lista completa para mantener presencia consistente.
       setUsers(users)
 
-      if (!currentRoom || joinedNickname === nickname) return
+      if (!currentRoom || !joinedNickname || joinedNickname === nickname) return
 
       addMessage(buildSystemMessage(currentRoom.id, joinedNickname, 'joined'))
     }
@@ -181,9 +223,13 @@ export function useSocket() {
     const handleUserLeft = ({ nickname: leftNickname, users }: UsersUpdatedPayload) => {
       setUsers(users)
 
-      if (!currentRoom || leftNickname === nickname) return
+      if (!currentRoom || !leftNickname || leftNickname === nickname) return
 
       addMessage(buildSystemMessage(currentRoom.id, leftNickname, 'left'))
+    }
+
+    const handleUsersUpdated = ({ users }: UsersUpdatedPayload) => {
+      setUsers(users)
     }
 
     const handleNewFile = (_payload: NewFilePayload) => {
@@ -229,6 +275,7 @@ export function useSocket() {
     socket.on('message-deleted', handleMessageDeleted)
     socket.on('user-joined', handleUserJoined)
     socket.on('user-left', handleUserLeft)
+    socket.on('users-updated', handleUsersUpdated)
     socket.on('new-file', handleNewFile)
     socket.on('error', handleSocketError)
     socket.on('connect_error', handleConnectError)
@@ -244,6 +291,7 @@ export function useSocket() {
       socket.off('message-deleted', handleMessageDeleted)
       socket.off('user-joined', handleUserJoined)
       socket.off('user-left', handleUserLeft)
+      socket.off('users-updated', handleUsersUpdated)
       socket.off('new-file', handleNewFile)
       socket.off('error', handleSocketError)
       socket.off('connect_error', handleConnectError)

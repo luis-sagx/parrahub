@@ -44,6 +44,11 @@ describe('FilesController', () => {
       size: 1024,
       buffer: Buffer.from('test'),
     } as Express.Multer.File;
+    const mockReq = {
+      headers: { 'x-device-fingerprint': 'fp-123' },
+      ip: '127.0.0.1',
+      socket: {},
+    } as any;
 
     it('debe subir archivo si hay sesion activa', async () => {
       const mockDto = { roomId: 'room-1', nickname: 'user1' };
@@ -53,9 +58,11 @@ describe('FilesController', () => {
       mockRedisService.getSession.mockResolvedValue(mockSession);
       mockFilesService.queueUpload.mockResolvedValue(mockResult);
 
-      const result = await controller.upload(mockFile, mockDto, 'device-123');
+      const result = await controller.upload(mockFile, mockDto, mockReq);
 
-      expect(redisService.getSession).toHaveBeenCalledWith('device-123');
+      expect(redisService.getSession).toHaveBeenCalledWith(
+        'ip:127.0.0.1:fp:fp-123',
+      );
       expect(filesService.queueUpload).toHaveBeenCalledWith(
         mockFile,
         'room-1',
@@ -72,7 +79,7 @@ describe('FilesController', () => {
       mockRedisService.getSession.mockResolvedValue(mockSession);
       mockFilesService.queueUpload.mockResolvedValue(mockResult);
 
-      await controller.upload(mockFile, mockDto, 'device-123');
+      await controller.upload(mockFile, mockDto, mockReq);
 
       expect(filesService.queueUpload).toHaveBeenCalledWith(
         mockFile,
@@ -87,7 +94,7 @@ describe('FilesController', () => {
       mockRedisService.getSession.mockResolvedValue(null);
 
       await expect(
-        controller.upload(mockFile, mockDto, 'device-123'),
+        controller.upload(mockFile, mockDto, mockReq),
       ).rejects.toThrow(UnauthorizedException);
     });
 
@@ -98,7 +105,7 @@ describe('FilesController', () => {
       mockRedisService.getSession.mockResolvedValue(mockSession);
 
       await expect(
-        controller.upload(mockFile, mockDto, 'device-123'),
+        controller.upload(mockFile, mockDto, mockReq),
       ).rejects.toThrow(UnauthorizedException);
     });
   });

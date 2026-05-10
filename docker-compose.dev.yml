@@ -100,8 +100,12 @@ services:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: chat-files
+      MESSAGE_ENCRYPTION_KEY: ${MESSAGE_ENCRYPTION_KEY:-01e2e3d4e5f607182938475664738394545566778899000aabbcccddeeff001122}
       PORT: 3000
-      FRONTEND_URL: http://localhost:8085
+      FRONTEND_URL: http://localhost:5174
+      DISCONNECT_GRACE_MS: 5000
+      PRESENCE_HEARTBEAT_MS: 5000
+      ROOM_PRESENCE_TTL_MS: 30000
     ports:
       - '3001:3000'
     volumes:

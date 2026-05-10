@@ -11,6 +11,11 @@ const mockClient = {
   srem: jest.fn().mockResolvedValue(1),
   smembers: jest.fn().mockResolvedValue([]),
   sismember: jest.fn().mockResolvedValue(0),
+  zadd: jest.fn().mockResolvedValue(1),
+  zrem: jest.fn().mockResolvedValue(1),
+  zrange: jest.fn().mockResolvedValue([]),
+  zscore: jest.fn().mockResolvedValue(null),
+  zremrangebyscore: jest.fn().mockResolvedValue(0),
   quit: jest.fn().mockResolvedValue('OK'),
 };
 
@@ -140,25 +145,36 @@ describe('RedisService', () => {
       await service.addUserToRoom('room-1', 'user1');
 
       expect(mockClient.sadd).toHaveBeenCalledWith('room-users:room-1', 'user1');
+      expect(mockClient.zadd).toHaveBeenCalledWith(
+        'room-presence:room-1',
+        expect.any(Number),
+        'user1',
+      );
     });
 
     it('removeUserFromRoom debe remover usuario de la sala', async () => {
       await service.removeUserFromRoom('room-1', 'user1');
 
       expect(mockClient.srem).toHaveBeenCalledWith('room-users:room-1', 'user1');
+      expect(mockClient.zrem).toHaveBeenCalledWith('room-presence:room-1', 'user1');
     });
 
     it('getRoomUsers debe retornar lista de usuarios', async () => {
-      mockClient.smembers.mockResolvedValue(['user1', 'user2']);
+      mockClient.zrange.mockResolvedValue(['user1', 'user2']);
 
       const result = await service.getRoomUsers('room-1');
 
-      expect(mockClient.smembers).toHaveBeenCalledWith('room-users:room-1');
+      expect(mockClient.zremrangebyscore).toHaveBeenCalledWith(
+        'room-presence:room-1',
+        '-inf',
+        expect.any(Number),
+      );
+      expect(mockClient.zrange).toHaveBeenCalledWith('room-presence:room-1', 0, -1);
       expect(result).toEqual(['user1', 'user2']);
     });
 
     it('hasNicknameInRoom debe retornar true si el usuario existe', async () => {
-      mockClient.sismember.mockResolvedValue(1);
+      mockClient.zscore.mockResolvedValue(String(Date.now()));
 
       const result = await service.hasNicknameInRoom('room-1', 'user1');
 
@@ -166,7 +182,7 @@ describe('RedisService', () => {
     });
 
     it('hasNicknameInRoom debe retornar false si no existe', async () => {
-      mockClient.sismember.mockResolvedValue(0);
+      mockClient.zscore.mockResolvedValue(null);
 
       const result = await service.hasNicknameInRoom('room-1', 'user1');
 
@@ -177,6 +193,7 @@ describe('RedisService', () => {
       await service.clearRoomUsers('room-1');
 
       expect(mockClient.del).toHaveBeenCalledWith('room-users:room-1');
+      expect(mockClient.del).toHaveBeenCalledWith('room-presence:room-1');
     });
   });
 });

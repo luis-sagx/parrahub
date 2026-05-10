@@ -17,6 +17,7 @@ describe('ChatGateway', () => {
     setGrace: jest.fn().mockResolvedValue(undefined),
     getGrace: jest.fn(),
     addUserToRoom: jest.fn().mockResolvedValue(undefined),
+    refreshUserInRoom: jest.fn().mockResolvedValue(undefined),
     removeUserFromRoom: jest.fn().mockResolvedValue(undefined),
     clearRoomUsers: jest.fn().mockResolvedValue(undefined),
     hasNicknameInRoom: jest.fn().mockResolvedValue(false),
@@ -305,7 +306,7 @@ describe('ChatGateway', () => {
 
       expect(client.emit).toHaveBeenCalledWith('error', {
         code: 'ALREADY_IN_ROOM',
-        message: 'Ya estás conectado en otra sala',
+        message: 'Ya tienes una sesión abierta en este dispositivo',
       });
     });
 

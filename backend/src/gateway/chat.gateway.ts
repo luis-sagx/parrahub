@@ -45,7 +45,7 @@ interface ClientData {
   nickname?: string;
   ip?: string;
   deviceId?: string;
-  sessionLockKey?: string;
+  fpLockKey?: string;
   cleanedUp?: boolean;
 }
 
@@ -231,13 +231,23 @@ export class ChatGateway
   }
 
   private getClientSessionKey(client: Socket): string {
-    // Fingerprint + IP identifica mejor el dispositivo que solo localStorage.
-    const fingerprint = String(client.handshake.auth?.deviceFingerprint ?? '')
-      .trim()
-      .replace(/[^a-zA-Z0-9_-]/g, '');
-    const baseKey = this.getClientBaseSessionKey(client);
+    // El deviceId de localStorage es el identificador más confiable por browser-perfil:
+    // es el mismo en todas las pestañas del mismo browser y distinto entre browsers/dispositivos.
+    const browserDeviceId = String(client.handshake.auth?.deviceId ?? '').trim();
+    return `device:${browserDeviceId}`;
+  }
 
-    return fingerprint ? `${baseKey}:fp:${fingerprint}` : baseKey;
+  private getClientFingerprintKey(client: Socket): string {
+    // Llave secundaria: IP + fingerprint de hardware para bloquear mismo dispositivo en diferente browser.
+    // Solo funciona cuando el fingerprint no es falsificado por privacy.resistFingerprinting.
+    const fingerprint = String(client.handshake.auth?.deviceFingerprint ?? '').trim();
+    if (!fingerprint) return '';
+    const forwardedFor = client.handshake.headers?.['x-forwarded-for'];
+    const ip = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : forwardedFor?.split(',')[0];
+    const resolvedIp = ip?.trim() || client.handshake.address;
+    return `ip:${resolvedIp}:fp:${fingerprint}`;
   }
 
   handleConnection(client: Socket) {
@@ -290,13 +300,11 @@ export class ChatGateway
     data: ClientData,
     options: { broadcastUserLeft: boolean },
   ) {
-    const { roomId, nickname, deviceId, sessionLockKey } = data;
+    const { roomId, nickname, deviceId, fpLockKey } = data;
     if (!roomId || !nickname || !deviceId) return;
 
     await this.redisService.deleteSession(deviceId);
-    if (sessionLockKey && sessionLockKey !== deviceId) {
-      await this.redisService.deleteSession(sessionLockKey);
-    }
+    if (fpLockKey) await this.redisService.deleteSession(fpLockKey);
     await this.redisService.deleteGrace(deviceId);
     await this.redisService.removeUserFromRoom(roomId, nickname);
 
@@ -336,8 +344,7 @@ export class ChatGateway
     const roomId = data.roomId;
     const nickname = data.nickname;
     const deviceId = data.deviceId;
-    const sessionLockKey = data.sessionLockKey;
-
+    const fpLockKey = data.fpLockKey;
     this.clearInactivityTimer(client.id);
 
     if (!roomId || !nickname || !deviceId) return;
@@ -352,9 +359,7 @@ export class ChatGateway
       if (!grace) return;
 
       await this.redisService.deleteSession(deviceId);
-      if (sessionLockKey && sessionLockKey !== deviceId) {
-        await this.redisService.deleteSession(sessionLockKey);
-      }
+      if (fpLockKey) await this.redisService.deleteSession(fpLockKey);
       await this.redisService.deleteGrace(deviceId);
       await this.redisService.removeUserFromRoom(roomId, nickname);
 
@@ -375,9 +380,8 @@ export class ChatGateway
   ) {
     const ip = client.handshake.address;
     const deviceId = this.getClientSessionKey(client);
-    const sessionLockKey = this.getClientBaseSessionKey(client);
-    // El deviceId de localStorage sigue siendo requerido para saber que es un cliente web valido.
     const browserDeviceId = String(client.handshake.auth?.deviceId ?? '');
+    const fpKey = this.getClientFingerprintKey(client);
     const { roomId, pin, nickname } = payload;
 
     if (!browserDeviceId) {
@@ -398,9 +402,7 @@ export class ChatGateway
 
       await client.join(roomId);
       await this.redisService.setSession(deviceId, roomId, nickname);
-      if (sessionLockKey !== deviceId) {
-        await this.redisService.setSession(sessionLockKey, roomId, nickname);
-      }
+      if (fpKey) await this.redisService.setSession(fpKey, roomId, nickname);
       await this.redisService.addUserToRoom(roomId, nickname);
 
       const clientData: ClientData = {
@@ -408,7 +410,7 @@ export class ChatGateway
         nickname,
         ip,
         deviceId,
-        sessionLockKey,
+        fpLockKey: fpKey || undefined,
       };
       client.data = clientData;
 
@@ -443,11 +445,10 @@ export class ChatGateway
       return;
     }
 
-    // 1. Verificar sesión única por origen del cliente. Esto evita que el
-    // mismo equipo abra otra sesión desde otro navegador.
+    // 1. Verificar sesión única: por UUID de browser (confiable) y por IP+fingerprint (best-effort cross-browser).
     const existingSession =
       (await this.redisService.getSession(deviceId)) ??
-      (await this.redisService.getSession(sessionLockKey));
+      (fpKey ? await this.redisService.getSession(fpKey) : null);
     if (existingSession) {
       client.emit('error', {
         code: 'ALREADY_IN_ROOM',
@@ -483,11 +484,8 @@ export class ChatGateway
 
     // 4. Unirse a la sala
     await client.join(roomId);
-    // Guarda la sesion especifica y el lock base para bloquear otro navegador del mismo equipo.
     await this.redisService.setSession(deviceId, roomId, nickname);
-    if (sessionLockKey !== deviceId) {
-      await this.redisService.setSession(sessionLockKey, roomId, nickname);
-    }
+    if (fpKey) await this.redisService.setSession(fpKey, roomId, nickname);
     await this.redisService.addUserToRoom(roomId, nickname);
 
     // 5. Guardar datos en el socket
@@ -496,7 +494,7 @@ export class ChatGateway
       nickname,
       ip,
       deviceId,
-      sessionLockKey,
+      fpLockKey: fpKey || undefined,
     };
     client.data = clientData;
 

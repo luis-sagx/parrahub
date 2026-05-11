@@ -79,4 +79,36 @@ describe('WsSessionGuard', () => {
     const result = await guard.canActivate(context);
     expect(result).toBe(true);
   });
+
+  it('should reject when auth is undefined in handshake', async () => {
+    const client = {
+      handshake: { auth: undefined },
+      emit: jest.fn(),
+    };
+    const context = {
+      switchToWs: () => ({
+        getClient: () => client,
+        getData: () => ({ roomId: 'room-1' }),
+      }),
+    } as unknown as ExecutionContext;
+
+    const result = await guard.canActivate(context);
+    expect(result).toBe(false);
+  });
+
+  it('should handle roomId being undefined in data', async () => {
+    const context = {
+      switchToWs: () => ({
+        getClient: () => ({
+          handshake: { auth: { deviceId: 'device-123' } },
+          emit: jest.fn(),
+        }),
+        getData: () => ({}),
+      }),
+    } as unknown as ExecutionContext;
+    mockRedisService.getSession.mockResolvedValue(null);
+
+    const result = await guard.canActivate(context);
+    expect(result).toBe(true);
+  });
 });

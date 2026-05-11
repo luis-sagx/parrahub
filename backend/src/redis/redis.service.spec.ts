@@ -53,6 +53,17 @@ describe('RedisService', () => {
       );
     });
 
+    it('setSession usa ttlSeconds por defecto (7200) cuando no se pasa', async () => {
+      await service.setSession('device-1', 'room-1', 'user1');
+
+      expect(mockClient.set).toHaveBeenCalledWith(
+        'session:device-1',
+        expect.any(String),
+        'EX',
+        7200,
+      );
+    });
+
     it('getSession debe retornar datos de sesion', async () => {
       const mockData = { roomId: 'room-1', nickname: 'user1', joinedAt: Date.now() };
       mockClient.get.mockResolvedValue(JSON.stringify(mockData));
@@ -107,6 +118,19 @@ describe('RedisService', () => {
       const graceData = { roomId: 'room-1', nickname: 'user1' };
 
       await service.setGrace('device-1', graceData, 30);
+
+      expect(mockClient.set).toHaveBeenCalledWith(
+        'grace:device-1',
+        JSON.stringify(graceData),
+        'EX',
+        30,
+      );
+    });
+
+    it('setGrace usa ttlSeconds por defecto (30) cuando no se pasa', async () => {
+      const graceData = { roomId: 'room-1', nickname: 'user1' };
+
+      await service.setGrace('device-1', graceData);
 
       expect(mockClient.set).toHaveBeenCalledWith(
         'grace:device-1',
@@ -194,6 +218,74 @@ describe('RedisService', () => {
 
       expect(mockClient.del).toHaveBeenCalledWith('room-users:room-1');
       expect(mockClient.del).toHaveBeenCalledWith('room-presence:room-1');
+    });
+
+    it('pruneInactiveRoomUsers debe eliminar entradas viejas del sorted set', async () => {
+      await service.pruneInactiveRoomUsers('room-1');
+
+      expect(mockClient.zremrangebyscore).toHaveBeenCalledWith(
+        'room-presence:room-1',
+        '-inf',
+        expect.any(Number),
+      );
+    });
+  });
+
+  describe('Grace Period - casos borde', () => {
+    it('getGrace debe retornar null si el JSON es invalido', async () => {
+      mockClient.get.mockResolvedValue('not-valid-json{{{');
+
+      const result = await service.getGrace('device-1');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('Module lifecycle', () => {
+    it('onModuleDestroy debe llamar a quit en el cliente Redis', async () => {
+      await service.onModuleDestroy();
+
+      expect(mockClient.quit).toHaveBeenCalled();
+    });
+
+    it('getClient debe retornar la instancia del cliente Redis', () => {
+      const client = service.getClient();
+
+      expect(client).toBeDefined();
+    });
+
+    it('retryStrategy cubre la funcion y sus ramas de Math.min', () => {
+      const Redis = require('ioredis') as jest.Mock;
+
+      // Create fresh service to get constructor call options after clearAllMocks
+      const freshService = new RedisService();
+      freshService.onModuleInit();
+
+      const options = Redis.mock.calls.at(-1)?.[0];
+      expect(typeof options?.retryStrategy).toBe('function');
+
+      // times * 100 < 3000: returns times * 100
+      expect(options.retryStrategy(5)).toBe(500);
+      // times * 100 >= 3000: capped at 3000
+      expect(options.retryStrategy(31)).toBe(3000);
+    });
+
+    it('usa valores por defecto cuando REDIS_HOST y REDIS_PORT no estan configurados', () => {
+      const savedHost = process.env.REDIS_HOST;
+      const savedPort = process.env.REDIS_PORT;
+      delete process.env.REDIS_HOST;
+      delete process.env.REDIS_PORT;
+
+      const Redis = require('ioredis') as jest.Mock;
+      const defaultService = new RedisService();
+      defaultService.onModuleInit();
+
+      const options = Redis.mock.calls.at(-1)?.[0];
+      expect(options.host).toBe('localhost');
+      expect(options.port).toBe(6379);
+
+      process.env.REDIS_HOST = savedHost;
+      process.env.REDIS_PORT = savedPort;
     });
   });
 });

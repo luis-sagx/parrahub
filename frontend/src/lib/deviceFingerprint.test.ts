@@ -1,32 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getDeviceFingerprint } from './deviceFingerprint'
 
-const originalNavigatorDescriptors = {
-  languages: Object.getOwnPropertyDescriptor(window.navigator, 'languages'),
-  language: Object.getOwnPropertyDescriptor(window.navigator, 'language'),
-  platform: Object.getOwnPropertyDescriptor(window.navigator, 'platform'),
-  hardwareConcurrency: Object.getOwnPropertyDescriptor(
-    window.navigator,
-    'hardwareConcurrency',
-  ),
-}
-
-const setNavigatorValue = (key: string, value: unknown) => {
-  Object.defineProperty(window.navigator, key, {
-    configurable: true,
-    value,
-  })
-}
-
 describe('getDeviceFingerprint', () => {
   afterEach(() => {
     vi.restoreAllMocks()
-
-    for (const [key, descriptor] of Object.entries(originalNavigatorDescriptors)) {
-      if (descriptor) {
-        Object.defineProperty(window.navigator, key, descriptor)
-      }
-    }
   })
 
   it('genera un hash estable con datos del dispositivo', () => {
@@ -37,16 +14,55 @@ describe('getDeviceFingerprint', () => {
     expect(second).toBe(first)
   })
 
-  it('usa fallbacks cuando faltan senales del navegador', () => {
+  it('produce el mismo hash independientemente de hardwareConcurrency', () => {
+    const first = getDeviceFingerprint()
+
+    Object.defineProperty(window.navigator, 'hardwareConcurrency', {
+      configurable: true,
+      value: 2,
+    })
+
+    const second = getDeviceFingerprint()
+    expect(first).toBe(second)
+  })
+
+  it('produce el mismo hash independientemente de timezone (timezone falsificado por Firefox RFP)', () => {
+    // El fingerprint ya no incluye timezone, así que cambiar Intl no debe afectarlo.
     vi.spyOn(Intl, 'DateTimeFormat').mockReturnValue({
-      resolvedOptions: () => ({ timeZone: '' }),
+      resolvedOptions: () => ({ timeZone: 'Atlantic/Reykjavik' }),
     } as Intl.DateTimeFormat)
 
-    setNavigatorValue('languages', undefined)
-    setNavigatorValue('language', '')
-    setNavigatorValue('platform', '')
-    setNavigatorValue('hardwareConcurrency', 0)
+    const first = getDeviceFingerprint()
 
-    expect(getDeviceFingerprint()).toMatch(/^[a-f0-9]{8}$/)
+    vi.spyOn(Intl, 'DateTimeFormat').mockReturnValue({
+      resolvedOptions: () => ({ timeZone: 'America/Guayaquil' }),
+    } as Intl.DateTimeFormat)
+
+    const second = getDeviceFingerprint()
+    expect(first).toBe(second)
+  })
+
+  it('produce hashes diferentes para distintos anchos de pantalla', () => {
+    const originalWidth = window.screen.width
+
+    Object.defineProperty(window.screen, 'width', { configurable: true, value: 1920 })
+    const desktop = getDeviceFingerprint()
+
+    Object.defineProperty(window.screen, 'width', { configurable: true, value: 390 })
+    const mobile = getDeviceFingerprint()
+
+    Object.defineProperty(window.screen, 'width', { configurable: true, value: originalWidth })
+
+    expect(desktop).not.toBe(mobile)
+  })
+
+  it('produce hashes diferentes para dispositivos con y sin pantalla táctil', () => {
+    Object.defineProperty(window.navigator, 'maxTouchPoints', { configurable: true, value: 0 })
+    const nonTouch = getDeviceFingerprint()
+
+    Object.defineProperty(window.navigator, 'maxTouchPoints', { configurable: true, value: 5 })
+    const touch = getDeviceFingerprint()
+
+    expect(nonTouch).not.toBe(touch)
   })
 })

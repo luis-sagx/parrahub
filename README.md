@@ -269,14 +269,48 @@ Si el cliente se desconecta y vuelve antes de `DISCONNECT_GRACE_MS`, se reconect
 
 ## Testing y carga
 
+Frontend (Vitest): se prueban flujos reales de UI con distintos casos. Se valida que:
+- Los formularios (login, crear sala, unirse a sala) muestren errores cuando los datos son invalidos y permitan avanzar cuando son correctos.
+- Los componentes de chat rendericen mensajes, archivos y reacciones en los estados correctos (vacio, cargando, con datos).
+- El estado global (Zustand) actualice lista de usuarios, mensajes y errores cuando llegan eventos de Socket.IO.
+- Los hooks y servicios manejen correctamente respuestas exitosas, errores HTTP y estados de carga.
+Cobertura: mayor al 70%.
+Comando:
+
 ```bash
-# Tests backend con cobertura
-docker compose exec backend pnpm run test:cov
+cd frontend && pnpm run test:coverage
+```
 
-# Tests E2E
-docker compose exec backend pnpm run test:e2e
+![Testing frontend](docs/assets/testing-frontend.png)
 
-# Prueba de carga
+Backend (Jest, unitarias): se prueban reglas de negocio y casos borde. Se valida que:
+- Autenticacion rechace credenciales invalidas y acepte credenciales validas.
+- Salas solo se creen con PIN valido y se bloquee el acceso cuando el PIN no coincide.
+- La presencia en Redis limpie usuarios inactivos y evite duplicados en la misma sala.
+- Los mensajes se guarden, se encripten y se emitan al cliente en el formato esperado.
+- La subida de archivos se encole y respete tipo y tamano permitido segun la sala.
+Cobertura: mayor al 70%.
+Comando:
+
+```bash
+cd backend && pnpm run test:cov
+```
+![Testing backend](docs/assets/testing-backend.png)
+
+Carga (k6): se ejecuta un escenario con 50 usuarios virtuales.
+- Ramp up: 30s hasta llegar a 50 usuarios.
+- Sostenido: 2 minutos con 50 usuarios activos.
+- Ramp down: 30s hasta volver a 0.
+Durante el test cada usuario hace login como admin y consulta salas, con pausas aleatorias entre 2 y 5 segundos para simular uso real.
+Se valida que:
+- El backend responda estable con 50 usuarios simultaneos.
+- La latencia p95 de HTTP y de tiempos de conexion/mensajes se mantenga bajo 1s.
+- La tasa de fallos sea menor al 1%.
+Comando:
+
+![Testing carga](docs/assets/testing-carga.png)
+
+```bash
 k6 run k6/load-test.js
 ```
 

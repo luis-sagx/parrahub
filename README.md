@@ -12,13 +12,20 @@
 6. [Uso](#uso)
 7. [Control de sesion por dispositivo](#control-de-sesion-por-dispositivo)
 8. [Testing y carga](#testing-y-carga)
-9. [Estructura del proyecto](#estructura-del-proyecto)
+9. [Casos de prueba](#casos-de-prueba)
+10. [Repositorio e integrantes](#repositorio-e-integrantes)
+11. [Estructura del proyecto](#estructura-del-proyecto)
 
 ---
 
 ## Descripcion
 
 ParrasHub permite a un administrador crear salas publicas protegidas por PIN. Los usuarios se unen con un nickname y conversan en tiempo real. En salas multimedia se permiten archivos, procesados de forma asincrona. El sistema garantiza sesiones unicas por dispositivo, previene abusos y ofrece una experiencia fluida incluso con 50 usuarios simultaneos.
+
+## Repositorio e integrantes
+
+- Repositorio: https://github.com/luis-sagx/parrahub.git
+- Integrantes: Jefferson Yepez, Luis Sagnay, Sebastian Parra
 
 ## Caracteristicas
 
@@ -313,6 +320,32 @@ Comando:
 ```bash
 k6 run k6/load-test.js
 ```
+
+---
+
+## Casos de prueba
+
+La siguiente tabla resume casos de prueba representativos del sistema para validacion funcional, integracion y rendimiento:
+
+| ID | Caso de prueba | Entrada / accion | Resultado esperado |
+| --- | --- | --- | --- |
+| CP-01 | Login de administrador exitoso | Enviar usuario y contrasena validos a `/api/auth/login` | El sistema retorna `access_token` y tiempo de expiracion |
+| CP-02 | Login de administrador fallido | Enviar credenciales invalidas a `/api/auth/login` | El sistema responde con error `401 Unauthorized` |
+| CP-03 | Creacion de sala de texto | Crear sala con nombre valido, tipo `TEXT` y PIN numerico | La sala se crea, el PIN se almacena encriptado y se devuelve la metadata sin exponer el PIN |
+| CP-04 | Rechazo de PIN invalido | Intentar crear una sala con PIN no numerico o fuera del rango permitido | El backend rechaza la solicitud con error de validacion |
+| CP-05 | Union correcta a una sala | Usuario envia `roomId`, `pin` y `nickname` validos por Socket.IO | El usuario entra a la sala, recibe historial, lista de usuarios y evento `join-success` |
+| CP-06 | Bloqueo de sesion duplicada | Intentar entrar dos veces desde el mismo dispositivo | El gateway responde con `ALREADY_IN_ROOM` y evita duplicar la sesion |
+| CP-07 | Bloqueo de nickname repetido | Dos usuarios intentan usar el mismo nickname en una sala | El segundo intento es rechazado con `NICKNAME_TAKEN` |
+| CP-08 | Envio de mensaje en tiempo real | Usuario conectado envia un mensaje de texto | El mensaje se encripta en MongoDB y se emite desencriptado a los clientes de la sala |
+| CP-09 | Reaccion a mensaje | Usuario agrega o quita una reaccion valida | El mensaje actualiza sus reacciones y se emite `message-reactions-updated` |
+| CP-10 | Marcado de mensajes vistos | Usuario marca mensajes como leidos | Se actualizan `seenBy` y `participants`, y se emite `message-seen-updated` |
+| CP-11 | Subida de archivo en sala multimedia | Usuario unido a sala `MULTIMEDIA` envia archivo valido | El archivo entra a BullMQ, se guarda en MinIO, se registra metadata en PostgreSQL y se publica en el chat |
+| CP-12 | Rechazo de archivo en sala de texto | Intentar subir archivo en una sala `TEXT` | El backend rechaza la operacion indicando que la sala no permite archivos |
+| CP-13 | Reconexion rapida | Usuario recarga la pagina dentro del tiempo de gracia | El sistema recupera la sesion sin expulsarlo de la sala |
+| CP-14 | Limpieza de presencia | Usuario deja de enviar heartbeat por encima del TTL configurado | Redis elimina al usuario de presencia y deja de mostrarse como conectado |
+| CP-15 | Prueba de carga | Ejecutar `k6/load-test.js` con 50 usuarios virtuales | El sistema mantiene estabilidad, baja tasa de error y latencia aceptable |
+
+Estos casos cubren autenticacion, validacion de reglas de negocio, tiempo real, manejo de archivos, control de sesiones y rendimiento general.
 
 ---
 

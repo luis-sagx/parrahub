@@ -1,4 +1,4 @@
-# ParrHub — Sistema de Chat en Tiempo Real
+# ParrasHub — Sistema de Chat en Tiempo Real
 
 > Plataforma de chat multi-sala con autenticación de administrador, gestión de salas públicas mediante PIN, y soporte para mensajes de texto y archivos multimedia.
 
@@ -17,7 +17,7 @@
 
 ## Descripción
 
-ParrHub es un sistema de chat en tiempo real que permite a los administradores crear múltiples salas de comunicación. Los usuarios acceden a las salas mediante un PIN único, sin necesidad de registro previo.
+ParrasHub es un sistema de chat en tiempo real que permite a los administradores crear múltiples salas de comunicación. Los usuarios acceden a las salas mediante un PIN único, sin necesidad de registro previo.
 
 ### Características Principales
 
@@ -99,106 +99,20 @@ ParrHub es un sistema de chat en tiempo real que permite a los administradores c
 
 ## Arquitectura del Sistema
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                                   USUARIOS                                       │
-│                         (Web Browser - Móvil)                                    │
-└─────────────────────────────────────────────────────────────────────────────────┘
-                                        │
-                                        │ HTTP / WS
-                                        ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              NGINX (Reverse Proxy)                                │
-│                        Puerto 8085 │ HTTP │ Enrutamiento                          │
-└─────────────────────────────────────────────────────────────────────────────────┘
-                    │                       │                       │
-                    │ /api                  │ /socket.io            │ /
-                    ▼                       ▼                       ▼
-┌────────────────────────┐  ┌──────────────────────┐  ┌──────────────────────────┐
-│     BACKEND (NestJS)    │  │   FRONTEND (React)   │  │    SERVICIOS INTERNOS    │
-│        Puerto 3000      │  │    Puerto 5174       │  │                          │
-│                        │  │                      │  │                          │
-│  ┌──────────────────┐   │  │  ┌───────────────┐  │  │  ┌────────────────────┐  │
-│  │   Auth Module   │   │  │  │   AdminLogin   │  │  │  │    PostgreSQL     │  │
-│  │  (JWT + bcrypt) │   │  │  ├───────────────┤  │  │  │   Puerto 5433     │  │
-│  └────────┬─────────┘   │  │  │ AdminDashboard │  │  │  │   Admins, Salas    │  │
-│           │             │  │  ├───────────────┤  │  │  └────────────────────┘  │
-│  ┌──────────────────┐   │  │  │   JoinRoom    │  │  │                          │
-│  │   Rooms Module   │   │  │  ├───────────────┤  │  │  ┌────────────────────┐  │
-│  │   (CRUD Salas)  │   │  │  │   ChatRoom     │  │  │  │      MongoDB       │  │
-│  └────────┬─────────┘   │  │  └───────────────┘  │  │  │   Puerto 27018     │  │
-│           │             │  │         │          │  │  │    Mensajes        │  │
-│  ┌──────────────────┐   │  └─────────┼──────────┘  │  └────────────────────┘  │
-│  │  Chat Gateway    │◄──┼────────────┘             │                          │
-│  │ (Socket.IO)      │   │                           │  ┌────────────────────┐  │
-│  └────────┬─────────┘   │                           │  │       Redis       │  │
-│           │             │                           │  │   Puerto 6380     │  │
-│  ┌──────────────────┐   │                           │  │  Sesiones, Cache  │  │
-│  │  Files Module     │   │                           │  └────────────────────┘  │
-│  │ (BullMQ + MinIO) │   │                           │                          │
-│  └──────────────────┘   │                           │  ┌────────────────────┐  │
-│                        │                           │  │       MinIO        │  │
-│                        │                           │  │   Puerto 9002      │  │
-│                        │                           │  │    Archivos        │  │
-│                        │                           │  └────────────────────┘  │
-└────────────────────────┴───────────────────────────┴──────────────────────────┘
-                                        │
-                                        │ Cola de Jobs
-                                        ▼
-                          ┌─────────────────────────┐
-                          │   BullMQ Worker         │
-                          │ (Procesamiento archivos)│
-                          └─────────────────────────┘
-```
 
-### Flujo de Datos
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              FLUJO DE MENSAJES                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  Usuario envia mensaje                                                        │
-│         │                                                                    │
-│         ▼                                                                    │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                   │
-│  │ Socket.IO    │───►│ Redis        │───►│ MongoDB      │                   │
-│  │ recibe       │    │ verifica     │    │ guarda       │                   │
-│  │              │    │ sesión       │    │ mensaje      │                   │
-│  └──────────────┘    └──────────────┘    └──────────────┘                   │
-│         │                                                                    │
-│         ▼                                                                    │
-│  ┌──────────────┐                                                           │
-│  │ Broadcast    │───► Todos los usuarios de la sala reciben < 100ms          │
-│  │ io.to(room)  │                                                           │
-│  └──────────────┘                                                           │
-│                                                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                              FLUJO DE ARCHIVOS                               │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  Usuario sube archivo                                                        │
-│         │                                                                    │
-│         ▼                                                                    │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                   │
-│  │ Multer       │───►│ BullMQ       │───►│ Worker       │                   │
-│  │ recibe       │    │ encola job   │    │ procesa en   │                   │
-│  │ multipart    │    │ (no bloquea)│    │ thread       │                   │
-│  └──────────────┘    └──────────────┘    └──────────────┘                   │
-│                                                │                            │
-│                                                ▼                            │
-│                          ┌──────────────┐    ┌──────────────┐                │
-│                          │ MinIO        │───►│ PostgreSQL   │                │
-│                          │ almacena     │    │ guarda URL   │                │
-│                          └──────────────┘    └──────────────┘                │
-│                                                │                            │
-│                                                ▼                            │
-│                          ┌──────────────┐                                  │
-│                          │ Socket.IO    │───► Notifica a sala               │
-│                          │ notifica     │                                   │
-│                          └──────────────┘                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+### Diagramas de Secuencia
+#### Conexión de Usuario (WebSockets)
+
+![alt text](docs/assets/coneccion-usuario.png)
+
+#### Flujo de Mensajes y Encriptación
+
+![alt text](docs/assets/mensajes-encriptacion.png)
+
+#### Subida Asíncrona de Archivos (Arquitectura Orientada a Eventos)
+
+![alt text](docs/assets/subida-archivos.png)
 
 ### Modelo de Datos
 

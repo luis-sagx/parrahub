@@ -112,35 +112,6 @@ ParrasHub permite a un administrador crear salas publicas protegidas por PIN. Lo
 
 ![alt text](docs/assets/subida-archivos.png)
 
-### Flujo de mensajes
-
-```
-Usuario envia mensaje
-       ↓
-  Socket.IO recibe
-       ↓
-  Redis valida sesion
-       ↓
-  MongoDB guarda mensaje (async)
-       ↓
-  Socket.IO broadcast a la sala
-```
-
-### Subida de archivos
-
-```
-Usuario sube archivo
-       ↓
-  Multer recibe el archivo
-       ↓
-  BullMQ encola el job
-       ↓
-  Worker sube a MinIO
-       ↓
-  URL guardada en PostgreSQL
-       ↓
-  Socket.IO notifica a la sala
-```
 
 ---
 
@@ -246,6 +217,9 @@ VITE_SOCKET_URL="http://localhost:3001"
 
 - **Enviar mensaje**: Escribe en el campo de texto y presiona Enter
 - **Ver usuarios**: Lista visible en el panel lateral
+- **Eliminar mensajes**: El autor puede eliminar sus propios mensajes
+- **Reacciones**: Haz clic en un mensaje para agregar una reacción (emoji)
+- **Previsualizar archivos**: En salas multimedia, ver antes de enviar
 - **Subir archivos**: Solo disponible en salas multimedia
 - **Salir**: Cierra el navegador o haz clic en "Salir"
 

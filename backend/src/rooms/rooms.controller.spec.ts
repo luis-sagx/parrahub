@@ -151,6 +151,16 @@ describe('RoomsController', () => {
         ForbiddenException,
       );
     });
+
+    it('debe usar string vacio si no hay admin en delete', async () => {
+      const mockReq = {};
+
+      mockRoomsService.delete.mockResolvedValue(undefined);
+
+      await controller.delete('room-1', mockReq);
+
+      expect(roomsService.delete).toHaveBeenCalledWith('room-1', '');
+    });
   });
 
   describe('getMessages', () => {

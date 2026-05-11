@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { RoomType } from '@prisma/client';
 import { FilesService } from './files.service';
 
@@ -99,6 +99,36 @@ describe('FilesService', () => {
 
       // Should not throw
       await service.validateUpload(createMockFile(), 'room-1');
+    });
+
+    it('rechaza cuando no se proporciona archivo (undefined)', async () => {
+      await expect(
+        service.validateUpload(undefined, 'room-1'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('usa DEFAULT_MAX_FILE_SIZE_MB cuando maxFileSize es 0', async () => {
+      mockPrisma.room.findUnique.mockResolvedValue({
+        id: 'room-1',
+        type: RoomType.MULTIMEDIA,
+        isActive: true,
+        maxFileSize: 0,
+      });
+
+      await service.validateUpload(createMockFile({ size: 1024 }), 'room-1');
+    });
+
+    it('lanza NotFoundException si la sala no esta activa', async () => {
+      mockPrisma.room.findUnique.mockResolvedValue({
+        id: 'room-1',
+        type: RoomType.MULTIMEDIA,
+        isActive: false,
+        maxFileSize: 10,
+      });
+
+      await expect(
+        service.validateUpload(createMockFile(), 'room-1'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

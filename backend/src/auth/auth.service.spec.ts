@@ -59,4 +59,38 @@ describe('AuthService', () => {
       service.login({ username: 'admin', password: 'wrongpassword' }),
     ).rejects.toThrow(UnauthorizedException);
   });
+
+  it('login usa JWT_EXPIRES_IN del env cuando esta configurado', async () => {
+    process.env.JWT_EXPIRES_IN = '24h';
+    const hash = await bcrypt.hash('Admin1234!', 10);
+    mockPrisma.admin.findUnique.mockResolvedValue({
+      id: '1',
+      username: 'admin',
+      password: hash,
+    });
+    const result = await service.login({ username: 'admin', password: 'Admin1234!' });
+    expect(result.expiresIn).toBe('24h');
+    delete process.env.JWT_EXPIRES_IN;
+  });
+
+  it('validateAdmin retorna el admin cuando existe', async () => {
+    const adminData = { id: '1', username: 'admin', createdAt: new Date() };
+    mockPrisma.admin.findUnique.mockResolvedValue(adminData);
+
+    const result = await service.validateAdmin('1');
+
+    expect(mockPrisma.admin.findUnique).toHaveBeenCalledWith({
+      where: { id: '1' },
+      select: { id: true, username: true, createdAt: true },
+    });
+    expect(result).toEqual(adminData);
+  });
+
+  it('validateAdmin retorna null cuando el admin no existe', async () => {
+    mockPrisma.admin.findUnique.mockResolvedValue(null);
+
+    const result = await service.validateAdmin('inexistente');
+
+    expect(result).toBeNull();
+  });
 });

@@ -110,4 +110,33 @@ describe('GlobalExceptionFilter', () => {
       }),
     );
   });
+
+  it('should log String(exception) for non-Error exception with status >= 500', () => {
+    const response = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+    };
+    const exception = { customField: 'plain object' };
+
+    filter.catch(exception, { switchToHttp: () => ({ getResponse: () => response, getRequest: () => ({ method: 'GET', url: '/api' }) }) } as any);
+
+    expect(response.status).toHaveBeenCalledWith(500);
+    expect(mockLoggerError).toHaveBeenCalled();
+  });
+
+  it('should use default message when exceptionResponse.message is undefined', () => {
+    const response = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+    };
+    const exception = new HttpException({}, HttpStatus.BAD_GATEWAY);
+
+    filter.catch(exception, { switchToHttp: () => ({ getResponse: () => response, getRequest: () => ({ method: 'GET', url: '/api' }) }) } as any);
+
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Error interno del servidor',
+      }),
+    );
+  });
 });

@@ -108,6 +108,114 @@ describe('FilesController', () => {
         controller.upload(mockFile, mockDto, mockReq),
       ).rejects.toThrow(UnauthorizedException);
     });
+
+    it('debe usar x-forwarded-for array cuando es un array', async () => {
+      const req = {
+        headers: { 'x-forwarded-for': ['10.0.0.1', '10.0.0.2'], 'x-device-fingerprint': 'fp-123' },
+        ip: '127.0.0.1',
+        socket: {},
+      } as any;
+      const session = { roomId: 'room-1', nickname: 'user1', joinedAt: Date.now() };
+      mockRedisService.getSession.mockResolvedValue(session);
+      mockFilesService.queueUpload.mockResolvedValue({ jobId: 'job-123' });
+
+      await controller.upload(mockFile, { roomId: 'room-1', nickname: 'user1' }, req);
+
+      expect(redisService.getSession).toHaveBeenCalledWith('ip:10.0.0.1:fp:fp-123');
+    });
+
+    it('debe usar x-forwarded-for string con coma', async () => {
+      const req = {
+        headers: { 'x-forwarded-for': '10.0.0.1,10.0.0.2', 'x-device-fingerprint': 'fp-123' },
+        ip: '127.0.0.1',
+        socket: {},
+      } as any;
+      const session = { roomId: 'room-1', nickname: 'user1', joinedAt: Date.now() };
+      mockRedisService.getSession.mockResolvedValue(session);
+      mockFilesService.queueUpload.mockResolvedValue({ jobId: 'job-123' });
+
+      await controller.upload(mockFile, { roomId: 'room-1', nickname: 'user1' }, req);
+
+      expect(redisService.getSession).toHaveBeenCalledWith('ip:10.0.0.1:fp:fp-123');
+    });
+
+    it('debe usar x-device-fingerprint array cuando es un array', async () => {
+      const req = {
+        headers: { 'x-device-fingerprint': ['fp-array', 'fp-other'] },
+        ip: '127.0.0.1',
+        socket: {},
+      } as any;
+      const session = { roomId: 'room-1', nickname: 'user1', joinedAt: Date.now() };
+      mockRedisService.getSession.mockResolvedValue(session);
+      mockFilesService.queueUpload.mockResolvedValue({ jobId: 'job-123' });
+
+      await controller.upload(mockFile, { roomId: 'room-1', nickname: 'user1' }, req);
+
+      expect(redisService.getSession).toHaveBeenCalledWith('ip:127.0.0.1:fp:fp-array');
+    });
+
+    it('debe usar solo sessionLockKey cuando no hay fingerprint', async () => {
+      const req = {
+        headers: {},
+        ip: '127.0.0.1',
+        socket: {},
+      } as any;
+      const session = { roomId: 'room-1', nickname: 'user1', joinedAt: Date.now() };
+      mockRedisService.getSession.mockResolvedValue(session);
+      mockFilesService.queueUpload.mockResolvedValue({ jobId: 'job-123' });
+
+      await controller.upload(mockFile, { roomId: 'room-1', nickname: 'user1' }, req);
+
+      expect(redisService.getSession).toHaveBeenCalledWith('ip:127.0.0.1');
+    });
+
+    it('usa sessionLockKey como fallback cuando sessionKey no tiene sesion', async () => {
+      const req = {
+        headers: { 'x-device-fingerprint': 'fp-123' },
+        ip: '127.0.0.1',
+        socket: {},
+      } as any;
+      const session = { roomId: 'room-1', nickname: 'user1', joinedAt: Date.now() };
+      mockRedisService.getSession
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(session);
+      mockFilesService.queueUpload.mockResolvedValue({ jobId: 'job-123' });
+
+      const result = await controller.upload(mockFile, { roomId: 'room-1', nickname: 'user1' }, req);
+
+      expect(redisService.getSession).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({ jobId: 'job-123', status: 'queued' });
+    });
+
+    it('usa socket.remoteAddress cuando no hay ip ni forwarded-for', async () => {
+      const req = {
+        headers: {},
+        ip: undefined,
+        socket: { remoteAddress: '192.168.1.1' },
+      } as any;
+      const session = { roomId: 'room-1', nickname: 'user1', joinedAt: Date.now() };
+      mockRedisService.getSession.mockResolvedValue(session);
+      mockFilesService.queueUpload.mockResolvedValue({ jobId: 'job-123' });
+
+      await controller.upload(mockFile, { roomId: 'room-1', nickname: 'user1' }, req);
+
+      expect(redisService.getSession).toHaveBeenCalledWith('ip:192.168.1.1');
+    });
+
+    it('usa string vacio como fallback cuando no hay ninguna ip disponible', async () => {
+      const req = {
+        headers: {},
+        ip: undefined,
+        socket: {},
+      } as any;
+      mockRedisService.getSession.mockResolvedValue(null);
+
+      await expect(
+        controller.upload(mockFile, { roomId: 'room-1', nickname: 'user1' }, req),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(redisService.getSession).toHaveBeenCalledWith('ip:');
+    });
   });
 
   describe('getFilesForRoom', () => {

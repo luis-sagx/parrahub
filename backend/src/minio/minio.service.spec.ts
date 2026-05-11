@@ -99,7 +99,13 @@ describe('MinioService', () => {
 
   it('getPresignedUrl retorna URL firmada', async () => {
     const url = await service.getPresignedUrl('test-key', 3600);
-    
+
+    expect(url).toBe('https://signed-url.com/file');
+  });
+
+  it('getPresignedUrl usa 3600 como valor por defecto cuando no se pasa expirySeconds', async () => {
+    const url = await service.getPresignedUrl('test-key');
+
     expect(url).toBe('https://signed-url.com/file');
   });
 });
@@ -164,8 +170,80 @@ describe('MinioService', () => {
 
   it('buildPublicUrl retorna URL publica', () => {
     const url = service.buildPublicUrl('my-key-123');
-    
+
     expect(url).toContain('/chat-files/');
     expect(url).toContain('my-key-123');
+  });
+
+  it('ensureBucket crea el bucket cuando no existe', async () => {
+    send.mockRejectedValueOnce(new Error('NoSuchBucket')); // HeadBucket falla
+    send.mockResolvedValueOnce({});                        // CreateBucket OK
+    send.mockResolvedValueOnce({});                        // PutBucketPolicy OK
+
+    await expect(service.onModuleInit()).resolves.not.toThrow();
+
+    expect(send.mock.calls[1][0]).toBeInstanceOf(CreateBucketCommand);
+    expect(send.mock.calls[2][0]).toBeInstanceOf(PutBucketPolicyCommand);
+  });
+
+  it('ensureBucket lanza InternalServerErrorException cuando no se puede crear', async () => {
+    send.mockRejectedValueOnce(new Error('NoSuchBucket')); // HeadBucket falla
+    send.mockRejectedValueOnce(new Error('Access denied')); // CreateBucket también falla
+
+    await expect(service.onModuleInit()).rejects.toThrow('MinIO no disponible');
+  });
+});
+
+describe('MinioService - SSL y variables de entorno personalizadas', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('usa https cuando MINIO_USE_SSL es true', () => {
+    process.env.MINIO_USE_SSL = 'true';
+    const sslService = new MinioService();
+    const send = (S3Client as jest.Mock).mock.results.at(-1)?.value.send;
+    send.mockResolvedValue({});
+
+    const url = sslService.buildPublicUrl('test-key');
+    expect(url).toContain('https://');
+    delete process.env.MINIO_USE_SSL;
+  });
+
+  it('usa MINIO_PUBLIC_ENDPOINT cuando esta configurado', () => {
+    process.env.MINIO_PUBLIC_ENDPOINT = 'cdn.example.com';
+    const customService = new MinioService();
+    const send = (S3Client as jest.Mock).mock.results.at(-1)?.value.send;
+    send.mockResolvedValue({});
+
+    const url = customService.buildPublicUrl('my-key');
+    expect(url).toContain('cdn.example.com');
+    delete process.env.MINIO_PUBLIC_ENDPOINT;
+  });
+
+  it('usa variables de entorno personalizadas para bucket, endpoint y port', () => {
+    process.env.MINIO_BUCKET = 'my-custom-bucket';
+    process.env.MINIO_ENDPOINT = 'minio.custom.com';
+    process.env.MINIO_PORT = '9999';
+    const customService = new MinioService();
+    const send = (S3Client as jest.Mock).mock.results.at(-1)?.value.send;
+    send.mockResolvedValue({});
+
+    const url = customService.buildPublicUrl('my-key');
+    expect(url).toContain('my-custom-bucket');
+    delete process.env.MINIO_BUCKET;
+    delete process.env.MINIO_ENDPOINT;
+    delete process.env.MINIO_PORT;
+  });
+
+  it('usa MINIO_REGION, ACCESS_KEY y SECRET_KEY del env cuando estan configurados', () => {
+    process.env.MINIO_REGION = 'eu-west-1';
+    process.env.MINIO_ACCESS_KEY = 'myaccesskey';
+    process.env.MINIO_SECRET_KEY = 'mysecretkey';
+    const customService = new MinioService();
+    expect(customService).toBeDefined();
+    delete process.env.MINIO_REGION;
+    delete process.env.MINIO_ACCESS_KEY;
+    delete process.env.MINIO_SECRET_KEY;
   });
 });

@@ -379,6 +379,85 @@ k6 run k6/load-test.js
 
 ---
 
+## Control de sesión por dispositivo
+
+El sistema garantiza que cada dispositivo físico solo pueda tener **una sesión activa por sala** al mismo tiempo, bloqueando múltiples pestañas, ventanas y —en la mayoría de los casos— diferentes navegadores en el mismo equipo.
+
+### Cómo funciona
+
+El sistema usa **dos claves de sesión en Redis simultáneamente**:
+
+| Clave | Basada en | Fiabilidad |
+|---|---|---|
+| `device:<UUID>` | UUID en `localStorage` | Confiable — misma pestaña/ventana en el mismo browser |
+| `ip:<IP>:fp:<fingerprint>` | IP de red + fingerprint de hardware | Best-effort — bloquea mismo equipo en diferente browser cuando las señales no están falsificadas |
+
+El frontend genera el UUID al primer acceso y calcula el fingerprint con señales de hardware consistentes entre browsers (familia de SO, timezone del sistema, dimensiones físicas de pantalla).
+
+```
+Cliente abre browser → UUID en localStorage (si no existe)
+                     → fingerprint: hash(OS|timezone|screen)
+                     → envía ambos en handshake auth.{deviceId, deviceFingerprint}
+
+Backend guarda en Redis:
+  device:<UUID>              →  { roomId, nickname }  (TTL 2h)
+  ip:<IP>:fp:<fingerprint>   →  { roomId, nickname }  (TTL 2h)
+```
+
+### Verificación al unirse a una sala
+
+```
+Nuevo intento de conexión
+        ↓
+¿Existe device:<UUID>?          → SÍ → ALREADY_IN_ROOM  (misma pestaña/ventana)
+        ↓ NO
+¿Existe ip:<IP>:fp:<fp>?        → SÍ → ALREADY_IN_ROOM  (mismo equipo, otro browser)
+        ↓ NO
+Validar PIN → validar nickname → unirse → guardar ambas claves
+```
+
+### Escenarios cubiertos
+
+| Escenario | Resultado | Mecanismo |
+|---|---|---|
+| Mismo browser, otra pestaña | ❌ Bloqueado | `device:<UUID>` (mismo localStorage) |
+| Mismo browser, otra ventana | ❌ Bloqueado | `device:<UUID>` (mismo localStorage) |
+| Mismo equipo, Chrome → Firefox | ❌ Bloqueado* | `ip:<IP>:fp:<fingerprint>` |
+| Mismo equipo, Chrome → Opera | ❌ Bloqueado* | `ip:<IP>:fp:<fingerprint>` |
+| Computador + celular en la misma red | ✅ Permitido | IPs distintas (LAN) o fingerprints distintos |
+| Distintos usuarios, misma red WiFi | ✅ Permitido | Fingerprints distintos (hardware distinto) |
+
+> \* **Limitación conocida:** Firefox con `privacy.resistFingerprinting` activo falsifica timezone y dimensiones de pantalla, generando un fingerprint diferente al de Chrome aunque sea el mismo equipo. En ese caso específico la segunda verificación no detecta la sesión duplicada. La primera verificación (`device:<UUID>`) sigue siendo siempre confiable.
+
+> **Por qué no se usa solo la IP:** Si la única clave fuera la IP, todos los usuarios de la misma red (WiFi universitaria, datos móviles con CGNAT) compartirían IP pública y solo uno podría entrar. El UUID garantiza unicidad por browser-perfil y el fingerprint agrega la dimensión de hardware sin romper múltiples dispositivos en red.
+
+### Reconexión rápida (grace period)
+
+Si un usuario cierra el browser accidentalmente y vuelve a abrir en los próximos **5 segundos** (configurable en `DISCONNECT_GRACE_MS`), el sistema lo reconecta a la misma sala sin perder el historial ni notificar al resto de usuarios que salió:
+
+```
+Cierre accidental
+      ↓
+Backend guarda grace:{deviceId} en Redis (TTL 5s)
+      ↓
+Usuario reconecta dentro del grace period
+      ↓
+Reconexión silenciosa → join-success con reconnected: true
+      ↓ (si no reconecta en 5s)
+Se limpian ambas claves de sesión → "usuario salió" se emite a la sala
+```
+
+### Archivos relevantes
+
+| Archivo | Qué hace |
+|---|---|
+| `backend/src/gateway/chat.gateway.ts` | Genera las dos claves, verifica ambas sesiones, maneja grace period |
+| `backend/src/redis/redis.service.ts` | `setSession`, `getSession`, `setGrace`, `getGrace` |
+| `frontend/src/lib/socket.ts` | Genera el UUID persistente en `localStorage` y lo envía en el handshake |
+| `frontend/src/lib/deviceFingerprint.ts` | Calcula el fingerprint de hardware (OS + timezone + pantalla) |
+
+---
+
 ## Flujo de datos por capas
 
 ```

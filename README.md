@@ -270,14 +270,11 @@ Accede a las siguientes URLs:
 # Iniciar todo con hot-reload
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
-# Tests con cobertura (70% mínimo requerido)
+# Tests backend
 docker compose exec backend pnpm run test:cov
 
-# Tests E2E
-docker compose exec backend pnpm run test:e2e
-
-# Lint
-docker compose exec backend pnpm run lint
+# Test frontend
+docker compose exec frontend pnpm run test:coverage
 
 # Ver logs
 docker compose logs -f backend
